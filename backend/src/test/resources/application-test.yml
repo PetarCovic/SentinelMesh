@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:sentinelmesh_test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  application:
+    name: sentinelmesh-backend-test
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  version: 0.1.0-test
