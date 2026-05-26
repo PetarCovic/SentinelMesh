@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
 import com.sentinelmesh.exceptions.InvalidDeviceApiKeyException;
+import com.sentinelmesh.exceptions.SecurityEventNotFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler 
@@ -52,6 +53,18 @@ public class GlobalExceptionHandler
 	            "timestamp", Instant.now().toString(),
 	            "status", 401,
 	            "error", "Unauthorized",
+	            "message", ex.getMessage()
+	    ));
+	}
+	
+	@ExceptionHandler(SecurityEventNotFoundException.class)
+	public ResponseEntity<Map<String, Object>> handleSecurityEventNotFound(
+	        SecurityEventNotFoundException ex
+	) {
+	    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+	            "timestamp", Instant.now().toString(),
+	            "status", 404,
+	            "error", "Not Found",
 	            "message", ex.getMessage()
 	    ));
 	}

@@ -1,0 +1,15 @@
+package com.sentinelmesh.events;
+
+public enum SecurityEventType 
+{
+	MOTION_DETECTED,
+	PERSON_DETECTED,
+	DOOR_OPENED,
+	DOOR_CLOSED,
+	WINDOW_OPENED,
+	WINDOW_CLOSED,
+	SOUND_DETECTED,
+	TEMPERATURE_ALERT,
+	DEVICE_TAMPERED,
+	UNKNOWN
+}
