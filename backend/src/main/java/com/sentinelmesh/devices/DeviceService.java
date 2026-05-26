@@ -14,22 +14,36 @@ import com.sentinelmesh.exceptions.DeviceNotFoundException;
 public class DeviceService 
 {
 	private final DeviceRepository deviceRepository;
+	private final DeviceApiKeyService deviceApiKeyService;
+	private final ApiKeyHashService apiKeyHashService;
 	
-	public DeviceService(DeviceRepository deviceRepository)
+	public DeviceService(
+			DeviceRepository deviceRepository,
+			DeviceApiKeyService deviceApiKeyService,
+			ApiKeyHashService apiKeyHashService
+			)
 	{
 		this.deviceRepository=deviceRepository;
+		this.deviceApiKeyService=deviceApiKeyService;
+		this.apiKeyHashService=apiKeyHashService;
 	}
 	
 	@Transactional
-	public DeviceResponse createDevice(CreateDeviceRequest request)
+	public CreateDeviceResponse createDevice(CreateDeviceRequest request)
 	{
-		Device device=new Device(request.getName(), 
+		String rawApiKey=deviceApiKeyService.generateRawApiKey();
+		String apiKeyHash=apiKeyHashService.hash(rawApiKey);
+		
+		Device device=new Device(
+				request.getName(), 
 				request.getType(), 
 				request.getLocation());
 		
+		device.setApiKeyHash(apiKeyHash);
+		
 		Device savedDevice=deviceRepository.save(device);
 		
-		return DeviceResponse.from(savedDevice);
+		return CreateDeviceResponse.from(savedDevice, rawApiKey);
 	}
 	
 	@Transactional(readOnly=true)

@@ -31,10 +31,11 @@ public class DeviceController
 	}
 	
 	@PostMapping
-	public ResponseEntity<DeviceResponse> createDevice(
+	public ResponseEntity<CreateDeviceResponse> createDevice(
 			@Valid @RequestBody CreateDeviceRequest request)
 	{
-		DeviceResponse response=deviceService.createDevice(request);
+		CreateDeviceResponse response=deviceService.createDevice(request);
+		
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}
 	

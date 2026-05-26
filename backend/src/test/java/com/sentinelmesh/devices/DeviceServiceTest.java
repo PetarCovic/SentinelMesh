@@ -40,7 +40,7 @@ class DeviceServiceTest {
         request.setType(DeviceType.CAMERA);
         request.setLocation("Front Porch");
 
-        DeviceResponse response = deviceService.createDevice(request);
+        CreateDeviceResponse response = deviceService.createDevice(request);
 
         assertNotNull(response.getId());
         assertEquals("Front Door Camera", response.getName());
@@ -81,7 +81,7 @@ class DeviceServiceTest {
         request.setType(DeviceType.CAMERA);
         request.setLocation("Front Porch");
 
-        DeviceResponse created = deviceService.createDevice(request);
+        CreateDeviceResponse created = deviceService.createDevice(request);
 
         DeviceResponse found = deviceService.getDeviceById(created.getId());
 
@@ -106,7 +106,7 @@ class DeviceServiceTest {
         createRequest.setType(DeviceType.CAMERA);
         createRequest.setLocation("Front Porch");
 
-        DeviceResponse created = deviceService.createDevice(createRequest);
+        CreateDeviceResponse created = deviceService.createDevice(createRequest);
 
         UpdateDeviceRequest updateRequest = new UpdateDeviceRequest();
         updateRequest.setLocation("Entryway");
@@ -139,7 +139,7 @@ class DeviceServiceTest {
         request.setType(DeviceType.CAMERA);
         request.setLocation("Front Porch");
 
-        DeviceResponse created = deviceService.createDevice(request);
+        CreateDeviceResponse created = deviceService.createDevice(request);
 
         assertEquals(1, deviceRepository.count());
 

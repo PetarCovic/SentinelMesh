@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
+import com.sentinelmesh.exceptions.InvalidDeviceApiKeyException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler 
@@ -41,5 +42,17 @@ public class GlobalExceptionHandler
 				"status", 400,
 				"error", "Validation Failed",
 				"messages", validationErrors));
+	}
+	
+	@ExceptionHandler(InvalidDeviceApiKeyException.class)
+	public ResponseEntity<Map<String, Object>> handleInvalidDeviceApiKey(
+	        InvalidDeviceApiKeyException ex
+	) {
+	    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+	            "timestamp", Instant.now().toString(),
+	            "status", 401,
+	            "error", "Unauthorized",
+	            "message", ex.getMessage()
+	    ));
 	}
 }
