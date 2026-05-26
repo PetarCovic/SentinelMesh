@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,6 +38,18 @@ public class DeviceController
 		CreateDeviceResponse response=deviceService.createDevice(request);
 		
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
+	}
+	
+	@PostMapping("/{id}/heartbeat")
+	public ResponseEntity<DeviceResponse> recordHeartbeat(
+			@PathVariable UUID id,
+			@RequestHeader("X-Device-Api-Key") String apiKey,
+			@Valid @RequestBody HeartbeatRequest request
+			)
+	{
+		DeviceResponse response=deviceService.recordHeartbeat(id, apiKey, request);
+		
+		return ResponseEntity.ok(response);
 	}
 	
 	@PatchMapping("/{id}")

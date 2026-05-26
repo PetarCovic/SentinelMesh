@@ -1,5 +1,6 @@
 package com.sentinelmesh.devices;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,16 +17,19 @@ public class DeviceService
 	private final DeviceRepository deviceRepository;
 	private final DeviceApiKeyService deviceApiKeyService;
 	private final ApiKeyHashService apiKeyHashService;
+	private final DeviceAuthenticationService deviceAuthenticationService;
 	
 	public DeviceService(
 			DeviceRepository deviceRepository,
 			DeviceApiKeyService deviceApiKeyService,
-			ApiKeyHashService apiKeyHashService
+			ApiKeyHashService apiKeyHashService,
+			DeviceAuthenticationService deviceAuthenticationService
 			)
 	{
 		this.deviceRepository=deviceRepository;
 		this.deviceApiKeyService=deviceApiKeyService;
 		this.apiKeyHashService=apiKeyHashService;
+		this.deviceAuthenticationService=deviceAuthenticationService;
 	}
 	
 	@Transactional
@@ -92,5 +96,19 @@ public class DeviceService
 				-> new DeviceNotFoundException(id));
 		
 		deviceRepository.delete(device);
+	}
+	
+	@Transactional
+	public DeviceResponse recordHeartbeat(
+			UUID id, 
+			String rawApiKey, 
+			HeartbeatRequest request)
+	{
+		Device device=deviceAuthenticationService.authenticate(id, rawApiKey);
+		
+		device.setStatus(DeviceStatus.ONLINE);
+		device.setLastSeenAt(Instant.now());
+		
+		return DeviceResponse.from(device);
 	}
 }
