@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
 import com.sentinelmesh.exceptions.InvalidDeviceApiKeyException;
 
@@ -33,9 +34,14 @@ class DeviceHeartbeatServiceTest {
 
     private String rawApiKey;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
-    void setUp() {
-        deviceRepository.deleteAll();
+    void setUp() 
+    {
+        testDatabaseCleaner.clean();
+    
         rawApiKey = "sm_live_test_heartbeat_key";
     }
 

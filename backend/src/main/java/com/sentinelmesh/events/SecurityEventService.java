@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sentinelmesh.alerts.AlertService;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceAuthenticationService;
 import com.sentinelmesh.exceptions.SecurityEventNotFoundException;
@@ -16,14 +17,17 @@ public class SecurityEventService
 {
 	private final SecurityEventRepository securityEventRepository;
 	private final DeviceAuthenticationService deviceAuthenticationService;
+	private final AlertService alertService;
 	
 	public SecurityEventService(
 			SecurityEventRepository securityEventRepository,
-			DeviceAuthenticationService deviceAuthenticationService
+			DeviceAuthenticationService deviceAuthenticationService,
+			AlertService alertService
 			)
 	{
 		this.securityEventRepository=securityEventRepository;
 		this.deviceAuthenticationService=deviceAuthenticationService;
+		this.alertService=alertService;
 	}
 	
 	@Transactional
@@ -49,6 +53,8 @@ public class SecurityEventService
 				);
 		
 		SecurityEvent savedEvent=securityEventRepository.save(event);
+		
+		alertService.createAlertIfNeeded(savedEvent);
 		
 		return SecurityEventResponse.from(savedEvent);
 	}

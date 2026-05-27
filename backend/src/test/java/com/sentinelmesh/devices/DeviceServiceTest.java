@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.devices.requests.CreateDeviceRequest;
 import com.sentinelmesh.devices.requests.UpdateDeviceRequest;
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
@@ -28,9 +29,12 @@ class DeviceServiceTest {
     @Autowired
     private DeviceRepository deviceRepository;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     void setUp() {
-        deviceRepository.deleteAll();
+        testDatabaseCleaner.clean();
     }
 
     @Test

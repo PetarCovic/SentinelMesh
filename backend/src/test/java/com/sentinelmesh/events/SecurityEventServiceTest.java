@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.devices.ApiKeyHashService;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceRepository;
@@ -41,10 +42,13 @@ class SecurityEventServiceTest {
 
     private String rawApiKey;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     void setUp() {
-        securityEventRepository.deleteAll();
-        deviceRepository.deleteAll();
+        testDatabaseCleaner.clean();
+ 
         rawApiKey = "test";
     }
 

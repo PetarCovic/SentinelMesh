@@ -1,9 +1,16 @@
 package com.sentinelmesh.events;
 
-import com.sentinelmesh.devices.ApiKeyHashService;
-import com.sentinelmesh.devices.Device;
-import com.sentinelmesh.devices.DeviceRepository;
-import com.sentinelmesh.devices.DeviceType;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Instant;
+import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,15 +20,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.Instant;
-import java.util.UUID;
-
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import com.sentinelmesh.TestDatabaseCleaner;
+import com.sentinelmesh.devices.ApiKeyHashService;
+import com.sentinelmesh.devices.Device;
+import com.sentinelmesh.devices.DeviceRepository;
+import com.sentinelmesh.devices.DeviceType;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -42,10 +45,13 @@ class SecurityEventControllerTest {
 
     private String rawApiKey;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     void setUp() {
-        securityEventRepository.deleteAll();
-        deviceRepository.deleteAll();
+        testDatabaseCleaner.clean();
+    
         rawApiKey = "sm_redacted_rotated";
     }
 

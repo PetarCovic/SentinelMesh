@@ -1,0 +1,19 @@
+{
+  "benchmark": "event-alert-generation",
+  "mode": "alerts-only",
+  "timestamp": "2026-05-27T02:50:46.300202300Z",
+  "totalRequests": 100,
+  "successfulRequests": 100,
+  "failedRequests": 0,
+  "expectedAlertsCreated": 100,
+  "totalDurationMillis": 602,
+  "eventsPerSecond": 166.11,
+  "latencyMillis": {
+    "average": 5.28,
+    "minimum": 2,
+    "maximum": 27,
+    "p50": 3,
+    "p95": 14,
+    "p99": 16
+  }
+}

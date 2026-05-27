@@ -1,8 +1,7 @@
 package com.sentinelmesh.devices;
 
-import static org.assertj.core.api.Assertions.not;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,6 +24,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.sentinelmesh.TestDatabaseCleaner;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -36,9 +37,12 @@ class DeviceControllerTest {
     @Autowired
     private DeviceRepository deviceRepository;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     void setUp() {
-        deviceRepository.deleteAll();
+        testDatabaseCleaner.clean();
     }
 
     @Test

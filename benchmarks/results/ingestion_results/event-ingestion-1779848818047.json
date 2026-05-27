@@ -1,0 +1,17 @@
+{
+  "benchmark": "event-ingestion",
+  "timestamp": "2026-05-27T02:26:58.047629400Z",
+  "totalRequests": 100,
+  "successfulRequests": 100,
+  "failedRequests": 0,
+  "totalDurationMillis": 1063,
+  "eventsPerSecond": 94.07,
+  "latencyMillis": {
+    "average": 9.95,
+    "minimum": 3,
+    "maximum": 45,
+    "p50": 10,
+    "p95": 16,
+    "p99": 26
+  }
+}

@@ -1,20 +1,25 @@
 package com.sentinelmesh.events;
 
-import com.sentinelmesh.devices.Device;
-import com.sentinelmesh.devices.DeviceRepository;
-import com.sentinelmesh.devices.DeviceType;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import java.time.Instant;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
-import java.time.Instant;
-
-import static org.junit.jupiter.api.Assertions.*;
+import com.sentinelmesh.TestDatabaseCleaner;
+import com.sentinelmesh.devices.Device;
+import com.sentinelmesh.devices.DeviceRepository;
+import com.sentinelmesh.devices.DeviceType;
 
 @DataJpaTest
 @ActiveProfiles("test")
+@Import(TestDatabaseCleaner.class)
 class SecurityEventRepositoryTest {
 
     @Autowired
@@ -25,10 +30,12 @@ class SecurityEventRepositoryTest {
 
     private Device savedDevice;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     void setUp() {
-        securityEventRepository.deleteAll();
-        deviceRepository.deleteAll();
+        testDatabaseCleaner.clean();
 
         Device device = new Device(
                 "Front Door Camera",

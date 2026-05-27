@@ -1,6 +1,6 @@
 package com.sentinelmesh.devices;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.time.Instant;
 
@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+
+import com.sentinelmesh.TestDatabaseCleaner;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -20,9 +22,12 @@ class DeviceStatusMonitorTest {
     @Autowired
     private DeviceRepository deviceRepository;
 
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     void setUp() {
-        deviceRepository.deleteAll();
+        testDatabaseCleaner.clean();
     }
 
     @Test
