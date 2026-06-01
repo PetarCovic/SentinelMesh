@@ -6,9 +6,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.sentinelmesh</groupId>
-    <artifactId>sentinelmesh_benchmarks</artifactId>
+    <benchmarks>sentinelmesh.benchmarks</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>benchmarks</name>
+    <name>sentinelmesh.benchmarks</name>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>

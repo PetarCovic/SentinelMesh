@@ -1,4 +1,4 @@
-package com.sentinelmesh.common;
+package com.sentinelmesh.exceptions;
 
 import java.time.Instant;
 import java.util.List;
@@ -9,11 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import com.sentinelmesh.exceptions.AlertNotFoundException;
-import com.sentinelmesh.exceptions.DeviceNotFoundException;
-import com.sentinelmesh.exceptions.InvalidDeviceApiKeyException;
-import com.sentinelmesh.exceptions.SecurityEventNotFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler 
@@ -72,6 +67,16 @@ public class GlobalExceptionHandler
 	
 	@ExceptionHandler(AlertNotFoundException.class)
 	public ResponseEntity<Map<String, Object>> handleAlertNotFound(AlertNotFoundException ex) {
+	    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+	            "timestamp", Instant.now().toString(),
+	            "status", 404,
+	            "error", "Not Found",
+	            "message", ex.getMessage()
+	    ));
+	}
+	
+	@ExceptionHandler(AlertRuleNotFoundException.class)
+	public ResponseEntity<Map<String, Object>> handleAlertRuleNotFound(AlertRuleNotFoundException ex) {
 	    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
 	            "timestamp", Instant.now().toString(),
 	            "status", 404,

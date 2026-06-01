@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: sentinelmesh-backend-benchmark
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sentinelmesh_benchmark
+    username: postgres
+    password: ${POSTGRES_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+sentinelmesh:
+  event-processing:
+    enabled: true
+    queue-name: sentinelmesh:event-processing:benchmark
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  version: 0.1.0-benchmark

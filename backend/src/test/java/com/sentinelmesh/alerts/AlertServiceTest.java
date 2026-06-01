@@ -12,9 +12,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import com.sentinelmesh.TestDatabaseCleaner;
+import com.sentinelmesh.TestQueueConfig;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceRepository;
 import com.sentinelmesh.devices.DeviceType;
@@ -26,6 +28,7 @@ import com.sentinelmesh.exceptions.AlertNotFoundException;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@Import(TestQueueConfig.class)
 class AlertServiceTest {
 
     @Autowired

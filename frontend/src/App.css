@@ -26,6 +26,18 @@ button {
   margin-bottom: 24px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.last-updated {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #38bdf8;
@@ -82,7 +94,7 @@ h1 {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -215,6 +227,43 @@ tr:last-child td {
   color: #bfdbfe;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid #334155;
+}
+
+.pagination button {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: #334155;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination span {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 1400px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1200px) {
   .stats-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -232,6 +281,11 @@ tr:last-child td {
 
   .header {
     flex-direction: column;
+  }
+
+  .header-actions {
+    align-items: stretch;
+    width: 100%;
   }
 
   .stats-grid {

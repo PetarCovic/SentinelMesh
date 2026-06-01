@@ -3,6 +3,8 @@ package com.sentinelmesh.alerts;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AlertRepository extends JpaRepository<Alert, UUID>
@@ -14,4 +16,8 @@ public interface AlertRepository extends JpaRepository<Alert, UUID>
 	List<Alert> findByStatusAndSeverity(AlertStatus status, AlertSeverity severity);
 	
 	boolean existsBySecurityEventId(UUID securityEventId);
+	
+	Page<Alert> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+	Page<Alert> findByStatusOrderByCreatedAtDesc(AlertStatus status, Pageable pageable);
 }

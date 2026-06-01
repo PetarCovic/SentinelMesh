@@ -14,10 +14,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.sentinelmesh.TestDatabaseCleaner;
+import com.sentinelmesh.TestQueueConfig;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceRepository;
 import com.sentinelmesh.devices.DeviceType;
@@ -29,6 +31,7 @@ import com.sentinelmesh.events.SecurityEventType;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestQueueConfig.class)
 class AlertControllerTest {
 
     @Autowired
@@ -67,15 +70,22 @@ class AlertControllerTest {
     @Test
     void getOpenAlerts_shouldReturnOnlyOpenAlerts() throws Exception {
         Alert openAlert = createSavedAlert(AlertSeverity.HIGH);
+
         Alert acknowledgedAlert = createSavedAlert(AlertSeverity.CRITICAL);
         acknowledgedAlert.acknowledge();
         alertRepository.save(acknowledgedAlert);
 
         mockMvc.perform(get("/api/alerts/open"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(openAlert.getId().toString()))
-                .andExpect(jsonPath("$[0].status").value("OPEN"));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(openAlert.getId().toString()))
+                .andExpect(jsonPath("$.content[0].status").value("OPEN"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(50))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(false));
     }
 
     @Test

@@ -65,3 +65,15 @@ export interface Alert
     acknowledgedAt: string | null;
     resolvedAt: string | null;
 }
+
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}

@@ -18,5 +18,6 @@ public class TestDatabaseCleaner {
         jdbcTemplate.update("DELETE FROM alerts");
         jdbcTemplate.update("DELETE FROM security_events");
         jdbcTemplate.update("DELETE FROM devices");
+        jdbcTemplate.update("DELETE FROM alert_rules");
     }
 }

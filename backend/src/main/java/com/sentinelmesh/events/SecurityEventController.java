@@ -10,7 +10,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.sentinelmesh.common.PageResponse;
 
 import jakarta.validation.Valid;
 
@@ -58,5 +61,13 @@ public class SecurityEventController
 			)
 	{
 		return ResponseEntity.ok(securityEventService.getEventsByDevice(deviceId));
+	}
+	
+	@GetMapping("/api/events/recent")
+	public ResponseEntity<PageResponse<SecurityEventResponse>> getRecentEvents(
+	        @RequestParam(defaultValue = "0") int page,
+	        @RequestParam(defaultValue = "50") int size
+	) {
+	    return ResponseEntity.ok(securityEventService.getRecentEvents(page, size));
 	}
 }

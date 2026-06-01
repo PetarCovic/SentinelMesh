@@ -16,11 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.sentinelmesh.TestDatabaseCleaner;
+import com.sentinelmesh.TestQueueConfig;
 import com.sentinelmesh.devices.ApiKeyHashService;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceRepository;
@@ -29,6 +31,7 @@ import com.sentinelmesh.devices.DeviceType;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestQueueConfig.class)
 class SecurityEventControllerTest {
 
     @Autowired

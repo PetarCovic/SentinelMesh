@@ -12,15 +12,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import com.sentinelmesh.TestDatabaseCleaner;
+import com.sentinelmesh.TestQueueConfig;
 import com.sentinelmesh.devices.requests.CreateDeviceRequest;
 import com.sentinelmesh.devices.requests.UpdateDeviceRequest;
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@Import(TestQueueConfig.class)
 class DeviceServiceTest {
 
     @Autowired

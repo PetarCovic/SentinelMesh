@@ -4,30 +4,35 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sentinelmesh.alerts.AlertService;
+import com.sentinelmesh.async.EventProcessingQueue;
+import com.sentinelmesh.common.PageResponse;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceAuthenticationService;
 import com.sentinelmesh.exceptions.SecurityEventNotFoundException;
+import com.sentinelmesh.rules.RuleEvaluationService;
 
 @Service
 public class SecurityEventService 
 {
 	private final SecurityEventRepository securityEventRepository;
 	private final DeviceAuthenticationService deviceAuthenticationService;
-	private final AlertService alertService;
+	private final EventProcessingQueue eventProcessingQueue;
 	
 	public SecurityEventService(
 			SecurityEventRepository securityEventRepository,
 			DeviceAuthenticationService deviceAuthenticationService,
-			AlertService alertService
+			EventProcessingQueue eventProcessingQueue
 			)
 	{
 		this.securityEventRepository=securityEventRepository;
 		this.deviceAuthenticationService=deviceAuthenticationService;
-		this.alertService=alertService;
+		this.eventProcessingQueue=eventProcessingQueue;
 	}
 	
 	@Transactional
@@ -54,7 +59,7 @@ public class SecurityEventService
 		
 		SecurityEvent savedEvent=securityEventRepository.save(event);
 		
-		alertService.createAlertIfNeeded(savedEvent);
+		eventProcessingQueue.enqueue(savedEvent.getId());
 		
 		return SecurityEventResponse.from(savedEvent);
 	}
@@ -85,5 +90,19 @@ public class SecurityEventService
 				.stream()
 				.map(SecurityEventResponse::from)
 				.toList();
+	}
+	
+	@Transactional(readOnly = true)
+	public PageResponse<SecurityEventResponse> getRecentEvents(int page, int size) {
+	    int safePage = Math.max(page, 0);
+	    int safeSize = Math.min(Math.max(size, 1), 100);
+
+	    Pageable pageable = PageRequest.of(safePage, safeSize);
+
+	    Page<SecurityEventResponse> responsePage = securityEventRepository
+	            .findAllByOrderByReceivedAtDesc(pageable)
+	            .map(SecurityEventResponse::from);
+
+	    return PageResponse.from(responsePage);
 	}
 }

@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sentinelmesh.common.PageResponse;
+
 @RestController
 @RequestMapping("/api/alerts")
 public class AlertController 
@@ -29,9 +31,11 @@ public class AlertController
 	}
 	
 	@GetMapping("/open")
-	public ResponseEntity<List<AlertResponse>> getOpenAlerts()
-	{
-		return ResponseEntity.ok(alertService.getOpenAlerts());
+	public ResponseEntity<PageResponse<AlertResponse>> getOpenAlerts(
+	        @RequestParam(defaultValue = "0") int page,
+	        @RequestParam(defaultValue = "50") int size
+	) {
+	    return ResponseEntity.ok(alertService.getOpenAlertsPaged(page, size));
 	}
 	
 	@GetMapping(value="/open", params="severity")
@@ -58,5 +62,13 @@ public class AlertController
 	public ResponseEntity<AlertResponse> resolveAlert(@PathVariable UUID id)
 	{
 		return ResponseEntity.ok(alertService.resolveAlert(id));
+	}
+	
+	@GetMapping("/recent")
+	public ResponseEntity<PageResponse<AlertResponse>> getRecentAlerts(
+	        @RequestParam(defaultValue = "0") int page,
+	        @RequestParam(defaultValue = "50") int size
+	) {
+	    return ResponseEntity.ok(alertService.getRecentAlerts(page, size));
 	}
 }

@@ -17,6 +17,10 @@ spring:
     properties:
       hibernate:
         format_sql: true	
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 management:
   endpoints:
@@ -26,6 +30,8 @@ management:
   endpoint:
     health:
       show-details: always
+
+
 
 app:
   version: 0.1.0

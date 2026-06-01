@@ -3,9 +3,13 @@ package com.sentinelmesh.alerts;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sentinelmesh.common.PageResponse;
 import com.sentinelmesh.events.SecurityEvent;
 import com.sentinelmesh.events.SecurityEventSeverity;
 import com.sentinelmesh.exceptions.AlertNotFoundException;
@@ -129,5 +133,33 @@ public class AlertService
 				+" with severity "
 				+event.getSeverity()
 				+".";
+	}
+	
+	@Transactional(readOnly = true)
+	public PageResponse<AlertResponse> getRecentAlerts(int page, int size) {
+	    int safePage = Math.max(page, 0);
+	    int safeSize = Math.min(Math.max(size, 1), 100);
+
+	    Pageable pageable = PageRequest.of(safePage, safeSize);
+
+	    Page<AlertResponse> responsePage = alertRepository
+	            .findAllByOrderByCreatedAtDesc(pageable)
+	            .map(AlertResponse::from);
+
+	    return PageResponse.from(responsePage);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponse<AlertResponse> getOpenAlertsPaged(int page, int size) {
+	    int safePage = Math.max(page, 0);
+	    int safeSize = Math.min(Math.max(size, 1), 100);
+
+	    Pageable pageable = PageRequest.of(safePage, safeSize);
+
+	    Page<AlertResponse> responsePage = alertRepository
+	            .findByStatusOrderByCreatedAtDesc(AlertStatus.OPEN, pageable)
+	            .map(AlertResponse::from);
+
+	    return PageResponse.from(responsePage);
 	}
 }

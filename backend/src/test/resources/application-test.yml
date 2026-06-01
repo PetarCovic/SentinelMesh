@@ -16,6 +16,10 @@ spring:
   application:
     name: sentinelmesh-backend-test
 
+sentinelmesh:
+  event-processing:
+    enabled: false
+
 management:
   endpoints:
     web:
