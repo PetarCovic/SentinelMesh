@@ -76,6 +76,42 @@ function App() {
     }
   }, [eventsPage, alertsPage]);
 
+  const loadDevicesData = useCallback(async () => {
+  try {
+    const devicesData = await getDevices();
+    setDevices(devicesData);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Unknown error loading devices");
+  }
+}, []);
+
+const loadEventsData = useCallback(async () => {
+  try {
+    const eventsData = await getRecentEvents(eventsPage, PAGE_SIZE);
+    setEvents(eventsData.content);
+    setEventsPageData(eventsData);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Unknown error loading events");
+  }
+}, [eventsPage]);
+
+const loadAlertsData = useCallback(async () => {
+  try {
+    const [alertsData, openAlertsData] = await Promise.all([
+      getRecentAlerts(alertsPage, PAGE_SIZE),
+      getOpenAlertsPaged(0, PAGE_SIZE),
+    ]);
+
+    setAlerts(alertsData.content);
+    setAlertsPageData(alertsData);
+
+    setOpenAlerts(openAlertsData.content);
+    setOpenAlertsPageData(openAlertsData);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Unknown error loading alerts");
+  }
+}, [alertsPage]);
+
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
@@ -94,27 +130,65 @@ function App() {
     };
   }, [autoRefreshEnabled, loadDashboardData]);
 
-  useEffect(() => {
-    const socket = createDashboardWebSocket(
-      (message) => {
-        setLastWebSocketMessage(message);
-        loadDashboardData();
-      },
-      () => {
-        setWebSocketConnected(true);
-      },
-      () => {
-        setWebSocketConnected(false);
-      },
-      () => {
-        setWebSocketConnected(false);
-      }
-    );
+const handleDashboardWebSocketMessage = useCallback(
+  async (message: DashboardEventMessage) => {
+    setLastWebSocketMessage(message);
+    setLastUpdatedAt(new Date());
 
-    return () => {
-      socket.close();
-    };
-  }, [loadDashboardData]);
+    switch (message.type) {
+      case "DEVICE_REGISTERED":
+      case "DEVICE_HEARTBEAT_RECEIVED":
+      case "DEVICE_STATUS_CHANGED":
+        await loadDevicesData();
+        break;
+
+      case "SECURITY_EVENT_CREATED":
+        await loadEventsData();
+        break;
+
+      case "ALERT_CREATED":
+      case "ALERT_ACKNOWLEDGED":
+      case "ALERT_RESOLVED":
+        await loadAlertsData();
+        break;
+
+      case "RULE_CREATED":
+      case "RULE_UPDATED":
+      case "RULE_DELETED":
+        // Rules UI comes next phase. For now, no dashboard reload needed.
+        break;
+
+      default:
+        await loadDashboardData();
+        break;
+    }
+  },
+  [
+    loadDevicesData,
+    loadEventsData,
+    loadAlertsData,
+    loadDashboardData,
+  ]
+);
+
+  useEffect(() => {
+  const socket = createDashboardWebSocket(
+    handleDashboardWebSocketMessage,
+    () => {
+      setWebSocketConnected(true);
+    },
+    () => {
+      setWebSocketConnected(false);
+    },
+    () => {
+      setWebSocketConnected(false);
+    }
+  );
+
+  return () => {
+    socket.close();
+  };
+}, [handleDashboardWebSocketMessage]);
 
   async function handleAcknowledgeAlert(id: string) {
     await acknowledgeAlert(id);

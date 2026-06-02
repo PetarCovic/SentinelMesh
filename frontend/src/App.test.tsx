@@ -399,35 +399,39 @@ describe("App dashboard", () => {
     });
   });
 
-  test("reloads dashboard when WebSocket message is received", async () => {
-    render(<App />);
+  test("reloads alert data when ALERT_CREATED WebSocket message is received", async () => {
+  render(<App />);
 
-    await waitFor(() => {
-      expect(screen.getAllByText("Front Door Camera").length).toBeGreaterThan(0);
-    });
-
-    expect(mockGetDevices).toHaveBeenCalledTimes(1);
-
-    MockWebSocket.instances[0].triggerMessage({
-      type: "ALERT_CREATED",
-      timestamp: new Date().toISOString(),
-      payload: {
-        alertId: "alert-123",
-        severity: "HIGH",
-      },
-    });
-
-    await waitFor(() => {
-      expect(mockGetDevices).toHaveBeenCalledTimes(2);
-      expect(mockGetRecentEvents).toHaveBeenCalledTimes(2);
-      expect(mockGetRecentAlerts).toHaveBeenCalledTimes(2);
-      expect(mockGetOpenAlertsPaged).toHaveBeenCalledTimes(2);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText(/last event: alert_created/i)).toBeInTheDocument();
-    });
+  await waitFor(() => {
+    expect(screen.getAllByText("Front Door Camera").length).toBeGreaterThan(0);
   });
+
+  expect(mockGetDevices).toHaveBeenCalledTimes(1);
+  expect(mockGetRecentEvents).toHaveBeenCalledTimes(1);
+  expect(mockGetRecentAlerts).toHaveBeenCalledTimes(1);
+  expect(mockGetOpenAlertsPaged).toHaveBeenCalledTimes(1);
+
+  MockWebSocket.instances[0].triggerMessage({
+    type: "ALERT_CREATED",
+    timestamp: new Date().toISOString(),
+    payload: {
+      alertId: "alert-123",
+      severity: "HIGH",
+    },
+  });
+
+  await waitFor(() => {
+    expect(mockGetRecentAlerts).toHaveBeenCalledTimes(2);
+    expect(mockGetOpenAlertsPaged).toHaveBeenCalledTimes(2);
+  });
+
+  expect(mockGetDevices).toHaveBeenCalledTimes(1);
+  expect(mockGetRecentEvents).toHaveBeenCalledTimes(1);
+
+  await waitFor(() => {
+    expect(screen.getByText(/last event: alert_created/i)).toBeInTheDocument();
+  });
+});
 
   test("closes WebSocket when dashboard unmounts", async () => {
     const { unmount } = render(<App />);

@@ -1,21 +1,29 @@
 package com.sentinelmesh.rules;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sentinelmesh.exceptions.AlertRuleNotFoundException;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @Service
 public class AlertRuleService 
 {
 	private final AlertRuleRepository alertRuleRepository;
+	private final DashboardEventBroadcaster dashboardEventBroadcaster;
 	
-	public AlertRuleService(AlertRuleRepository alertRuleRepository)
+	public AlertRuleService(
+			AlertRuleRepository alertRuleRepository,
+			DashboardEventBroadcaster dashboardEventBroadcaster
+			)
 	{
 		this.alertRuleRepository=alertRuleRepository;
+		this.dashboardEventBroadcaster=dashboardEventBroadcaster;
 	}
 	
 	@Transactional
@@ -34,6 +42,15 @@ public class AlertRuleService
 				);
 		
 		AlertRule savedRule=alertRuleRepository.save(rule);
+		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.RULE_CREATED,
+		        Map.of(
+		                "ruleId", savedRule.getId().toString(),
+		                "name", savedRule.getName(),
+		                "enabled", savedRule.isEnabled()
+		        )
+		);
 		
 		return AlertRuleResponse.from(savedRule);
 	}
@@ -71,16 +88,30 @@ public class AlertRuleService
 				request.getAlertMessage()
 				);
 		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.RULE_UPDATED,
+		        Map.of(
+		                "ruleId", rule.getId().toString(),
+		                "name", rule.getName(),
+		                "enabled", rule.isEnabled()
+		        )
+		);
+		
 		return AlertRuleResponse.from(rule);
 	}
 	
 	@Transactional
-	public void deleteRule(UUID id)
-	{
-		if(!alertRuleRepository.existsById(id))
-			throw new AlertRuleNotFoundException(id);
-		
-		alertRuleRepository.deleteById(id);
+	public void deleteRule(UUID id) {
+	    if (!alertRuleRepository.existsById(id)) {
+	        throw new AlertRuleNotFoundException(id);
+	    }
+
+	    alertRuleRepository.deleteById(id);
+
+	    dashboardEventBroadcaster.broadcast(
+	            DashboardEventType.RULE_DELETED,
+	            Map.of("ruleId", id.toString())
+	    );
 	}
 	
 	@Transactional
@@ -90,6 +121,15 @@ public class AlertRuleService
 				.orElseThrow(() -> new AlertRuleNotFoundException(id));
 		
 		rule.enable();
+		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.RULE_UPDATED,
+		        Map.of(
+		                "ruleId", rule.getId().toString(),
+		                "name", rule.getName(),
+		                "enabled", rule.isEnabled()
+		        )
+		);
 		
 		return AlertRuleResponse.from(rule);
 	}
@@ -101,6 +141,15 @@ public class AlertRuleService
 				.orElseThrow(() -> new AlertRuleNotFoundException(id));
 		
 		rule.disable();
+		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.RULE_UPDATED,
+		        Map.of(
+		                "ruleId", rule.getId().toString(),
+		                "name", rule.getName(),
+		                "enabled", rule.isEnabled()
+		        )
+		);
 		
 		return AlertRuleResponse.from(rule);
 	}

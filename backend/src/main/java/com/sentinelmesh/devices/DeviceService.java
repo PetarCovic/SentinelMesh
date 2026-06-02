@@ -2,6 +2,7 @@ package com.sentinelmesh.devices;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -10,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sentinelmesh.devices.requests.CreateDeviceRequest;
 import com.sentinelmesh.devices.requests.UpdateDeviceRequest;
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @Service
 public class DeviceService 
@@ -18,18 +21,21 @@ public class DeviceService
 	private final DeviceApiKeyService deviceApiKeyService;
 	private final ApiKeyHashService apiKeyHashService;
 	private final DeviceAuthenticationService deviceAuthenticationService;
+	private final DashboardEventBroadcaster dashboardEventBroadcaster;
 	
 	public DeviceService(
 			DeviceRepository deviceRepository,
 			DeviceApiKeyService deviceApiKeyService,
 			ApiKeyHashService apiKeyHashService,
-			DeviceAuthenticationService deviceAuthenticationService
+			DeviceAuthenticationService deviceAuthenticationService,
+			DashboardEventBroadcaster dashboardEventBroadcaster
 			)
 	{
 		this.deviceRepository=deviceRepository;
 		this.deviceApiKeyService=deviceApiKeyService;
 		this.apiKeyHashService=apiKeyHashService;
 		this.deviceAuthenticationService=deviceAuthenticationService;
+		this.dashboardEventBroadcaster=dashboardEventBroadcaster;
 	}
 	
 	@Transactional
@@ -46,6 +52,17 @@ public class DeviceService
 		device.setApiKeyHash(apiKeyHash);
 		
 		Device savedDevice=deviceRepository.save(device);
+		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.DEVICE_REGISTERED,
+		        Map.of(
+		                "deviceId", savedDevice.getId().toString(),
+		                "deviceName", savedDevice.getName(),
+		                "deviceType", savedDevice.getType().toString(),
+		                "location", savedDevice.getLocation(),
+		                "status", savedDevice.getStatus().toString()
+		        )
+		);
 		
 		return CreateDeviceResponse.from(savedDevice, rawApiKey);
 	}
@@ -100,15 +117,41 @@ public class DeviceService
 	
 	@Transactional
 	public DeviceResponse recordHeartbeat(
-			UUID id, 
-			String rawApiKey, 
-			HeartbeatRequest request)
+	        UUID id,
+	        String rawApiKey,
+	        HeartbeatRequest request)
 	{
-		Device device=deviceAuthenticationService.authenticate(id, rawApiKey);
-		
-		device.setStatus(DeviceStatus.ONLINE);
-		device.setLastSeenAt(Instant.now());
-		
-		return DeviceResponse.from(device);
+	    Device device = deviceAuthenticationService.authenticate(id, rawApiKey);
+
+	    DeviceStatus oldStatus = device.getStatus();
+
+	    device.setStatus(DeviceStatus.ONLINE);
+	    device.setLastSeenAt(Instant.now());
+
+	    dashboardEventBroadcaster.broadcast(
+	            DashboardEventType.DEVICE_HEARTBEAT_RECEIVED,
+	            Map.of(
+	                    "deviceId", device.getId().toString(),
+	                    "deviceName", device.getName(),
+	                    "status", device.getStatus().toString(),
+	                    "lastSeenAt", device.getLastSeenAt() == null
+	                            ? ""
+	                            : device.getLastSeenAt().toString()
+	            )
+	    );
+
+	    if (oldStatus != device.getStatus()) {
+	        dashboardEventBroadcaster.broadcast(
+	                DashboardEventType.DEVICE_STATUS_CHANGED,
+	                Map.of(
+	                        "deviceId", device.getId().toString(),
+	                        "deviceName", device.getName(),
+	                        "oldStatus", oldStatus.toString(),
+	                        "newStatus", device.getStatus().toString()
+	                )
+	        );
+	    }
+
+	    return DeviceResponse.from(device);
 	}
 }

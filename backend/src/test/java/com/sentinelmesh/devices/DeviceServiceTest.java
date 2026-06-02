@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import java.util.UUID;
 
@@ -14,12 +17,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.TestQueueConfig;
 import com.sentinelmesh.devices.requests.CreateDeviceRequest;
 import com.sentinelmesh.devices.requests.UpdateDeviceRequest;
 import com.sentinelmesh.exceptions.DeviceNotFoundException;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -34,6 +40,9 @@ class DeviceServiceTest {
 
     @Autowired
     private TestDatabaseCleaner testDatabaseCleaner;
+
+    @MockitoBean
+    private DashboardEventBroadcaster dashboardEventBroadcaster;
 
     @BeforeEach
     void setUp() {
@@ -50,6 +59,7 @@ class DeviceServiceTest {
         CreateDeviceResponse response = deviceService.createDevice(request);
 
         assertNotNull(response.getId());
+        assertNotNull(response.getApiKey());
         assertEquals("Front Door Camera", response.getName());
         assertEquals(DeviceType.CAMERA, response.getType());
         assertEquals("Front Porch", response.getLocation());
@@ -59,6 +69,11 @@ class DeviceServiceTest {
         assertNotNull(response.getUpdatedAt());
 
         assertEquals(1, deviceRepository.count());
+
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.DEVICE_REGISTERED),
+                any()
+        );
     }
 
     @Test
@@ -101,9 +116,9 @@ class DeviceServiceTest {
     void getDeviceById_shouldThrowWhenDeviceDoesNotExist() {
         UUID missingId = UUID.randomUUID();
 
-        assertThrows(DeviceNotFoundException.class, () -> {
-            deviceService.getDeviceById(missingId);
-        });
+        assertThrows(DeviceNotFoundException.class, () ->
+                deviceService.getDeviceById(missingId)
+        );
     }
 
     @Test
@@ -134,9 +149,9 @@ class DeviceServiceTest {
         UpdateDeviceRequest updateRequest = new UpdateDeviceRequest();
         updateRequest.setLocation("Garage");
 
-        assertThrows(DeviceNotFoundException.class, () -> {
-            deviceService.updateDevice(missingId, updateRequest);
-        });
+        assertThrows(DeviceNotFoundException.class, () ->
+                deviceService.updateDevice(missingId, updateRequest)
+        );
     }
 
     @Test
@@ -160,8 +175,41 @@ class DeviceServiceTest {
     void deleteDevice_shouldThrowWhenDeviceDoesNotExist() {
         UUID missingId = UUID.randomUUID();
 
-        assertThrows(DeviceNotFoundException.class, () -> {
-            deviceService.deleteDevice(missingId);
-        });
+        assertThrows(DeviceNotFoundException.class, () ->
+                deviceService.deleteDevice(missingId)
+        );
+    }
+
+    @Test
+    void recordHeartbeat_shouldMarkDeviceOnlineAndBroadcastHeartbeat() {
+        CreateDeviceRequest request = new CreateDeviceRequest();
+        request.setName("Front Door Camera");
+        request.setType(DeviceType.CAMERA);
+        request.setLocation("Front Porch");
+
+        CreateDeviceResponse created = deviceService.createDevice(request);
+
+        HeartbeatRequest heartbeatRequest = new HeartbeatRequest();
+        heartbeatRequest.setStatus(DeviceStatus.ONLINE);
+
+        DeviceResponse response = deviceService.recordHeartbeat(
+                created.getId(),
+                created.getApiKey(),
+                heartbeatRequest
+        );
+
+        assertEquals(created.getId(), response.getId());
+        assertEquals(DeviceStatus.ONLINE, response.getStatus());
+        assertNotNull(response.getLastSeenAt());
+
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.DEVICE_HEARTBEAT_RECEIVED),
+                any()
+        );
+
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.DEVICE_STATUS_CHANGED),
+                any()
+        );
     }
 }

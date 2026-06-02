@@ -121,9 +121,43 @@ describe("dashboardWebSocket", () => {
     expect(onMessage).not.toHaveBeenCalled();
   });
 
-  test("returns the created WebSocket instance", () => {
-    const socket = createDashboardWebSocket(vi.fn());
+  test("returns a client with a close function", () => {
+    const client = createDashboardWebSocket(vi.fn());
 
-    expect(socket).toBe(MockWebSocket.instances[0]);
+    expect(client.close).toBeDefined();
+  });
+
+  test("reconnects when socket closes unexpectedly", () => {
+    vi.useFakeTimers();
+
+    createDashboardWebSocket(vi.fn());
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    MockWebSocket.instances[0].triggerClose();
+
+    vi.advanceTimersByTime(3000);
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+
+    vi.useRealTimers();
+  });
+
+  test("does not reconnect after manual close", () => {
+    vi.useFakeTimers();
+
+    const client = createDashboardWebSocket(vi.fn());
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    client.close();
+
+    MockWebSocket.instances[0].triggerClose();
+
+    vi.advanceTimersByTime(3000);
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    vi.useRealTimers();
   });
 });

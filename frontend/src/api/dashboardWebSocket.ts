@@ -16,34 +16,64 @@ export interface DashboardEventMessage {
   payload: Record<string, unknown>;
 }
 
+export interface DashboardWebSocketClient {
+  close: () => void;
+}
+
+const DASHBOARD_WS_URL = "ws://localhost:8080/ws/dashboard";
+
 export function createDashboardWebSocket(
   onMessage: (message: DashboardEventMessage) => void,
   onOpen?: () => void,
   onClose?: () => void,
   onError?: () => void
-): WebSocket {
-  const socket = new WebSocket("ws://localhost:8080/ws/dashboard");
+): DashboardWebSocketClient {
+  let socket: WebSocket | null = null;
+  let reconnectTimeoutId: number | null = null;
+  let manuallyClosed = false;
 
-  socket.onopen = () => {
-    onOpen?.();
+  function connect() {
+    socket = new WebSocket(DASHBOARD_WS_URL);
+
+    socket.onopen = () => {
+      onOpen?.();
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data) as DashboardEventMessage;
+        onMessage(message);
+      } catch (error) {
+        console.error("Failed to parse dashboard WebSocket message", error);
+      }
+    };
+
+    socket.onclose = () => {
+      onClose?.();
+
+      if (!manuallyClosed) {
+        reconnectTimeoutId = window.setTimeout(() => {
+          connect();
+        }, 3000);
+      }
+    };
+
+    socket.onerror = () => {
+      onError?.();
+    };
+  }
+
+  connect();
+
+  return {
+    close: () => {
+      manuallyClosed = true;
+
+      if (reconnectTimeoutId !== null) {
+        window.clearTimeout(reconnectTimeoutId);
+      }
+
+      socket?.close();
+    },
   };
-
-  socket.onmessage = (event) => {
-    try {
-      const message = JSON.parse(event.data) as DashboardEventMessage;
-      onMessage(message);
-    } catch (error) {
-      console.error("Failed to parse dashboard WebSocket message", error);
-    }
-  };
-
-  socket.onclose = () => {
-    onClose?.();
-  };
-
-  socket.onerror = () => {
-    onError?.();
-  };
-
-  return socket;
 }

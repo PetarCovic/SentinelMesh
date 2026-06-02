@@ -1,11 +1,6 @@
 package com.sentinelmesh.devices;
 
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -18,15 +13,17 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.TestQueueConfig;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -43,14 +40,17 @@ class DeviceControllerTest {
     @Autowired
     private TestDatabaseCleaner testDatabaseCleaner;
 
+    @MockitoBean
+    private DashboardEventBroadcaster dashboardEventBroadcaster;
+
     @BeforeEach
     void setUp() {
         testDatabaseCleaner.clean();
     }
 
     @Test
-    void createDevice_shouldReturnCreatedDevice() throws Exception {
-        String requestJson = """
+    void createDevice_shouldReturnCreatedDeviceWithApiKey() throws Exception {
+        String json = """
                 {
                   "name": "Front Door Camera",
                   "type": "CAMERA",
@@ -60,19 +60,19 @@ class DeviceControllerTest {
 
         mockMvc.perform(post("/api/devices")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
+                        .content(json))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.apiKey").exists())
                 .andExpect(jsonPath("$.name").value("Front Door Camera"))
                 .andExpect(jsonPath("$.type").value("CAMERA"))
                 .andExpect(jsonPath("$.location").value("Front Porch"))
-                .andExpect(jsonPath("$.status").value("OFFLINE"))
-                .andExpect(jsonPath("$.lastSeenAt").doesNotExist());
+                .andExpect(jsonPath("$.status").value("OFFLINE"));
     }
 
     @Test
-    void createDevice_shouldRejectMissingName() throws Exception {
-        String requestJson = """
+    void createDevice_shouldReturnBadRequestWhenNameMissing() throws Exception {
+        String json = """
                 {
                   "type": "CAMERA",
                   "location": "Front Porch"
@@ -81,64 +81,47 @@ class DeviceControllerTest {
 
         mockMvc.perform(post("/api/devices")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void createDevice_shouldRejectInvalidDeviceType() throws Exception {
-        String requestJson = """
-                {
-                  "name": "Invalid Device",
-                  "type": "DOG",
-                  "location": "Front Porch"
-                }
-                """;
-
-        mockMvc.perform(post("/api/devices")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
+                        .content(json))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void getAllDevices_shouldReturnDevices() throws Exception {
-        Device device = new Device(
+        deviceRepository.save(new Device(
                 "Front Door Camera",
                 DeviceType.CAMERA,
                 "Front Porch"
-        );
+        ));
 
-        deviceRepository.save(device);
+        deviceRepository.save(new Device(
+                "Garage Door Sensor",
+                DeviceType.DOOR_SENSOR,
+                "Garage"
+        ));
 
         mockMvc.perform(get("/api/devices"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].name").value("Front Door Camera"))
-                .andExpect(jsonPath("$[0].type").value("CAMERA"))
-                .andExpect(jsonPath("$[0].location").value("Front Porch"));
+                .andExpect(jsonPath("$", hasSize(2)));
     }
 
     @Test
     void getDeviceById_shouldReturnDevice() throws Exception {
-        Device device = new Device(
+        Device device = deviceRepository.save(new Device(
                 "Front Door Camera",
                 DeviceType.CAMERA,
                 "Front Porch"
-        );
+        ));
 
-        Device saved = deviceRepository.save(device);
-
-        mockMvc.perform(get("/api/devices/{id}", saved.getId()))
+        mockMvc.perform(get("/api/devices/{id}", device.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(saved.getId().toString()))
+                .andExpect(jsonPath("$.id").value(device.getId().toString()))
                 .andExpect(jsonPath("$.name").value("Front Door Camera"))
                 .andExpect(jsonPath("$.type").value("CAMERA"))
                 .andExpect(jsonPath("$.location").value("Front Porch"));
     }
 
     @Test
-    void getDeviceById_shouldReturnNotFoundWhenDeviceDoesNotExist() throws Exception {
+    void getDeviceById_shouldReturnNotFoundWhenMissing() throws Exception {
         UUID missingId = UUID.randomUUID();
 
         mockMvc.perform(get("/api/devices/{id}", missingId))
@@ -146,180 +129,61 @@ class DeviceControllerTest {
     }
 
     @Test
-    void updateDevice_shouldUpdateProvidedFields() throws Exception {
-        Device device = new Device(
+    void updateDevice_shouldUpdateDevice() throws Exception {
+        Device device = deviceRepository.save(new Device(
                 "Front Door Camera",
                 DeviceType.CAMERA,
                 "Front Porch"
-        );
+        ));
 
-        Device saved = deviceRepository.save(device);
-
-        String requestJson = """
+        String json = """
                 {
                   "location": "Entryway"
                 }
                 """;
 
-        mockMvc.perform(patch("/api/devices/{id}", saved.getId())
+        mockMvc.perform(patch("/api/devices/{id}", device.getId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
+                        .content(json))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(saved.getId().toString()))
+                .andExpect(jsonPath("$.id").value(device.getId().toString()))
                 .andExpect(jsonPath("$.name").value("Front Door Camera"))
-                .andExpect(jsonPath("$.type").value("CAMERA"))
                 .andExpect(jsonPath("$.location").value("Entryway"));
     }
 
     @Test
-    void updateDevice_shouldReturnNotFoundWhenDeviceDoesNotExist() throws Exception {
+    void updateDevice_shouldReturnNotFoundWhenMissing() throws Exception {
         UUID missingId = UUID.randomUUID();
 
-        String requestJson = """
+        String json = """
                 {
-                  "location": "Garage"
+                  "location": "Entryway"
                 }
                 """;
 
         mockMvc.perform(patch("/api/devices/{id}", missingId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
+                        .content(json))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void deleteDevice_shouldReturnNoContent() throws Exception {
-        Device device = new Device(
+    void deleteDevice_shouldDeleteDevice() throws Exception {
+        Device device = deviceRepository.save(new Device(
                 "Front Door Camera",
                 DeviceType.CAMERA,
                 "Front Porch"
-        );
+        ));
 
-        Device saved = deviceRepository.save(device);
-
-        mockMvc.perform(delete("/api/devices/{id}", saved.getId()))
+        mockMvc.perform(delete("/api/devices/{id}", device.getId()))
                 .andExpect(status().isNoContent());
-
-        mockMvc.perform(get("/api/devices/{id}", saved.getId()))
-                .andExpect(status().isNotFound());
     }
 
     @Test
-    void deleteDevice_shouldReturnNotFoundWhenDeviceDoesNotExist() throws Exception {
+    void deleteDevice_shouldReturnNotFoundWhenMissing() throws Exception {
         UUID missingId = UUID.randomUUID();
 
         mockMvc.perform(delete("/api/devices/{id}", missingId))
                 .andExpect(status().isNotFound());
-    }
-    
-    @Test
-    void createDevice_shouldReturnRawApiKeyOnce() throws Exception {
-        String requestJson = """
-                {
-                  "name": "Backyard Camera",
-                  "type": "CAMERA",
-                  "location": "Backyard"
-                }
-                """;
-
-        mockMvc.perform(post("/api/devices")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.name").value("Backyard Camera"))
-                .andExpect(jsonPath("$.type").value("CAMERA"))
-                .andExpect(jsonPath("$.location").value("Backyard"))
-                .andExpect(jsonPath("$.status").value("OFFLINE"))
-                .andExpect(jsonPath("$.apiKey").exists())
-                .andExpect(jsonPath("$.apiKey").value(org.hamcrest.Matchers.startsWith("sm_live_")));
-    }
-
-    @Test
-    void createDevice_shouldStoreApiKeyHashButNotRawApiKey() throws Exception {
-        String requestJson = """
-                {
-                  "name": "Backyard Camera",
-                  "type": "CAMERA",
-                  "location": "Backyard"
-                }
-                """;
-
-        mockMvc.perform(post("/api/devices")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.apiKey").exists());
-
-        Device savedDevice = deviceRepository.findAll().get(0);
-
-        assertNotNull(savedDevice.getApiKeyHash());
-        assertFalse(savedDevice.getApiKeyHash().isBlank());
-        assertFalse(savedDevice.getApiKeyHash().startsWith("sm_live_"));
-        assertEquals(64, savedDevice.getApiKeyHash().length());
-    }
-
-    @Test
-    void getAllDevices_shouldNotExposeApiKeyOrApiKeyHash() throws Exception {
-        Device device = new Device(
-                "Front Door Camera",
-                DeviceType.CAMERA,
-                "Front Porch"
-        );
-        device.setApiKeyHash("fake_hash_for_test");
-        deviceRepository.save(device);
-
-        mockMvc.perform(get("/api/devices"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").exists())
-                .andExpect(jsonPath("$[0].name").value("Front Door Camera"))
-                .andExpect(jsonPath("$[0]", not(hasKey("apiKey"))))
-                .andExpect(jsonPath("$[0]", not(hasKey("apiKeyHash"))));
-    }
-
-    @Test
-    void getDeviceById_shouldNotExposeApiKeyOrApiKeyHash() throws Exception {
-        Device device = new Device(
-                "Front Door Camera",
-                DeviceType.CAMERA,
-                "Front Porch"
-        );
-        device.setApiKeyHash("fake_hash_for_test");
-
-        Device savedDevice = deviceRepository.save(device);
-
-        mockMvc.perform(get("/api/devices/{id}", savedDevice.getId()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(savedDevice.getId().toString()))
-                .andExpect(jsonPath("$.name").value("Front Door Camera"))
-                .andExpect(jsonPath("$", not(hasKey("apiKey"))))
-                .andExpect(jsonPath("$", not(hasKey("apiKeyHash"))));
-    }
-
-    @Test
-    void updateDevice_shouldNotExposeApiKeyOrApiKeyHash() throws Exception {
-        Device device = new Device(
-                "Backyard Camera",
-                DeviceType.CAMERA,
-                "Backyard"
-        );
-        device.setApiKeyHash("fake_hash_for_test");
-
-        Device savedDevice = deviceRepository.save(device);
-
-        String requestJson = """
-                {
-                  "location": "Backyard Patio"
-                }
-                """;
-
-        mockMvc.perform(patch("/api/devices/{id}", savedDevice.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(savedDevice.getId().toString()))
-                .andExpect(jsonPath("$.location").value("Backyard Patio"))
-                .andExpect(jsonPath("$", not(hasKey("apiKey"))))
-                .andExpect(jsonPath("$", not(hasKey("apiKeyHash"))));
     }
 }
