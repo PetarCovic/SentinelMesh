@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -14,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.TestQueueConfig;
@@ -25,6 +29,8 @@ import com.sentinelmesh.events.SecurityEventRepository;
 import com.sentinelmesh.events.SecurityEventSeverity;
 import com.sentinelmesh.events.SecurityEventType;
 import com.sentinelmesh.exceptions.AlertNotFoundException;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -45,6 +51,9 @@ class AlertServiceTest {
 
     @Autowired
     private TestDatabaseCleaner testDatabaseCleaner;
+    
+    @MockitoBean
+    private DashboardEventBroadcaster dashboardEventBroadcaster;
 
     @BeforeEach
     void setUp() {
@@ -208,6 +217,11 @@ class AlertServiceTest {
 
         assertEquals(AlertStatus.ACKNOWLEDGED, reloadedAlert.getStatus());
         assertNotNull(reloadedAlert.getAcknowledgedAt());
+        
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.ALERT_ACKNOWLEDGED),
+                any()
+        );
     }
 
     @Test
@@ -236,6 +250,11 @@ class AlertServiceTest {
 
         assertEquals(AlertStatus.RESOLVED, reloadedAlert.getStatus());
         assertNotNull(reloadedAlert.getResolvedAt());
+        
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.ALERT_RESOLVED),
+                any()
+        );
     }
 
     @Test

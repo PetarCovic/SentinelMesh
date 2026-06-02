@@ -7,6 +7,10 @@ import {
   getRecentEvents,
   resolveAlert,
 } from "./api/sentinelMeshApi";
+import {
+  createDashboardWebSocket,
+  type DashboardEventMessage,
+} from "./api/dashboardWebSocket";
 import type { Alert, Device, PageResponse, SecurityEvent } from "./types";
 import "./App.css";
 
@@ -35,6 +39,10 @@ function App() {
 
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+
+  const [webSocketConnected, setWebSocketConnected] = useState(false);
+  const [lastWebSocketMessage, setLastWebSocketMessage] =
+    useState<DashboardEventMessage | null>(null);
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -86,6 +94,28 @@ function App() {
     };
   }, [autoRefreshEnabled, loadDashboardData]);
 
+  useEffect(() => {
+    const socket = createDashboardWebSocket(
+      (message) => {
+        setLastWebSocketMessage(message);
+        loadDashboardData();
+      },
+      () => {
+        setWebSocketConnected(true);
+      },
+      () => {
+        setWebSocketConnected(false);
+      },
+      () => {
+        setWebSocketConnected(false);
+      }
+    );
+
+    return () => {
+      socket.close();
+    };
+  }, [loadDashboardData]);
+
   async function handleAcknowledgeAlert(id: string) {
     await acknowledgeAlert(id);
     await loadDashboardData();
@@ -120,6 +150,16 @@ function App() {
               ? `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`
               : "Not updated yet"}
           </div>
+
+          <div className="websocket-status">
+            WebSocket: {webSocketConnected ? "Connected" : "Disconnected"}
+          </div>
+
+          {lastWebSocketMessage && (
+            <div className="last-updated">
+              Last event: {lastWebSocketMessage.type}
+            </div>
+          )}
 
           <button
             className="refresh-button"

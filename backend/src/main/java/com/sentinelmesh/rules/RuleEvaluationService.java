@@ -1,6 +1,7 @@
 package com.sentinelmesh.rules;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,20 +10,25 @@ import com.sentinelmesh.alerts.Alert;
 import com.sentinelmesh.alerts.AlertRepository;
 import com.sentinelmesh.events.SecurityEvent;
 import com.sentinelmesh.events.SecurityEventSeverity;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @Service
 public class RuleEvaluationService 
 {
 	private final AlertRuleRepository alertRuleRepository;
 	private final AlertRepository alertRepository;
+	private final DashboardEventBroadcaster dashboardEventBroadcaster;
 	
 	public RuleEvaluationService(
 			AlertRuleRepository alertRuleRepository,
-			AlertRepository alertRepository
+			AlertRepository alertRepository,
+			DashboardEventBroadcaster dashboardEventBroadcaster
 			)
 	{
 		this.alertRuleRepository=alertRuleRepository;
 		this.alertRepository=alertRepository;
+		this.dashboardEventBroadcaster=dashboardEventBroadcaster;
 	}
 	
 	@Transactional
@@ -44,7 +50,20 @@ public class RuleEvaluationService
 						buildMessage(rule, event)
 						);
 				
-				alertRepository.save(alert);
+				Alert savedAlert = alertRepository.save(alert);
+
+				dashboardEventBroadcaster.broadcast(
+				        DashboardEventType.ALERT_CREATED,
+				        Map.of(
+				                "alertId", savedAlert.getId().toString(),
+				                "securityEventId", event.getId().toString(),
+				                "deviceId", event.getDevice().getId().toString(),
+				                "deviceName", event.getDevice().getName(),
+				                "severity", savedAlert.getSeverity().toString(),
+				                "title", savedAlert.getTitle()
+				        )
+				);
+
 				return;
 			}
 		}

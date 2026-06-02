@@ -1,8 +1,12 @@
 package com.sentinelmesh.rules;
 
+import static org.hamcrest.CoreMatchers.any;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
 
@@ -12,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.TestQueueConfig;
@@ -25,6 +30,8 @@ import com.sentinelmesh.events.SecurityEvent;
 import com.sentinelmesh.events.SecurityEventRepository;
 import com.sentinelmesh.events.SecurityEventSeverity;
 import com.sentinelmesh.events.SecurityEventType;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -48,6 +55,9 @@ class RuleEvaluationServiceTest {
 
     @Autowired
     private TestDatabaseCleaner testDatabaseCleaner;
+    
+    @MockitoBean
+    private DashboardEventBroadcaster dashboardEventBroadcaster;
 
     @BeforeEach
     void setUp() {
@@ -202,6 +212,11 @@ class RuleEvaluationServiceTest {
         assertEquals(AlertSeverity.CRITICAL, alert.getSeverity());
         assertTrue(alert.getTitle().contains("PERSON_DETECTED"));
         assertTrue(alert.getMessage().contains("Rule Test Camera"));
+        
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.ALERT_CREATED),
+                any()
+        );
     }
 
     @Test

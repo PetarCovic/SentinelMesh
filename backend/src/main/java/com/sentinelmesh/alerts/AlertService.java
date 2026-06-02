@@ -1,6 +1,7 @@
 package com.sentinelmesh.alerts;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -13,15 +14,22 @@ import com.sentinelmesh.common.PageResponse;
 import com.sentinelmesh.events.SecurityEvent;
 import com.sentinelmesh.events.SecurityEventSeverity;
 import com.sentinelmesh.exceptions.AlertNotFoundException;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @Service
 public class AlertService 
 {
 	private final AlertRepository alertRepository;
+	private final DashboardEventBroadcaster dashboardEventBroadcaster;
 	
-	public AlertService(AlertRepository alertRepository)
+	public AlertService(
+			AlertRepository alertRepository,
+			DashboardEventBroadcaster dashboardEventBroadcaster
+			)
 	{
 		this.alertRepository=alertRepository;
+		this.dashboardEventBroadcaster=dashboardEventBroadcaster;
 	}
 	
 	@Transactional
@@ -88,6 +96,14 @@ public class AlertService
 		
 		alert.acknowledge();
 		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.ALERT_ACKNOWLEDGED,
+		        Map.of(
+		                "alertId", alert.getId().toString(),
+		                "status", alert.getStatus().toString()
+		        )
+		);
+		
 		return AlertResponse.from(alert);
 	}
 	
@@ -98,6 +114,14 @@ public class AlertService
 				.orElseThrow(() -> new AlertNotFoundException(id));
 		
 		alert.resolve();
+		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.ALERT_RESOLVED,
+		        Map.of(
+		                "alertId", alert.getId().toString(),
+		                "status", alert.getStatus().toString()
+		        )
+		);
 		
 		return AlertResponse.from(alert);
 	}

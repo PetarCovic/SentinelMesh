@@ -2,6 +2,7 @@ package com.sentinelmesh.events;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -15,7 +16,8 @@ import com.sentinelmesh.common.PageResponse;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceAuthenticationService;
 import com.sentinelmesh.exceptions.SecurityEventNotFoundException;
-import com.sentinelmesh.rules.RuleEvaluationService;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @Service
 public class SecurityEventService 
@@ -23,16 +25,19 @@ public class SecurityEventService
 	private final SecurityEventRepository securityEventRepository;
 	private final DeviceAuthenticationService deviceAuthenticationService;
 	private final EventProcessingQueue eventProcessingQueue;
+	private final DashboardEventBroadcaster dashboardEventBroadcaster;
 	
 	public SecurityEventService(
 			SecurityEventRepository securityEventRepository,
 			DeviceAuthenticationService deviceAuthenticationService,
-			EventProcessingQueue eventProcessingQueue
+			EventProcessingQueue eventProcessingQueue,
+			DashboardEventBroadcaster dashboardEventBroadcaster
 			)
 	{
 		this.securityEventRepository=securityEventRepository;
 		this.deviceAuthenticationService=deviceAuthenticationService;
 		this.eventProcessingQueue=eventProcessingQueue;
+		this.dashboardEventBroadcaster=dashboardEventBroadcaster;
 	}
 	
 	@Transactional
@@ -60,6 +65,17 @@ public class SecurityEventService
 		SecurityEvent savedEvent=securityEventRepository.save(event);
 		
 		eventProcessingQueue.enqueue(savedEvent.getId());
+		
+		dashboardEventBroadcaster.broadcast(
+		        DashboardEventType.SECURITY_EVENT_CREATED,
+		        Map.of(
+		                "eventId", savedEvent.getId().toString(),
+		                "deviceId", savedEvent.getDevice().getId().toString(),
+		                "deviceName", savedEvent.getDevice().getName(),
+		                "eventType", savedEvent.getEventType().toString(),
+		                "severity", savedEvent.getSeverity().toString()
+		        )
+		);
 		
 		return SecurityEventResponse.from(savedEvent);
 	}

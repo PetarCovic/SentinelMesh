@@ -292,3 +292,12 @@ tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.websocket-status {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  border: 1px solid #334155;
+  background: #1e293b;
+  padding: 6px 10px;
+  border-radius: 999px;
+}

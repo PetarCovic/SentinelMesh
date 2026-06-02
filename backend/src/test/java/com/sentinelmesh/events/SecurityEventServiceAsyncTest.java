@@ -1,7 +1,11 @@
 package com.sentinelmesh.events;
 
+import static org.hamcrest.CoreMatchers.any;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.sentinelmesh.TestDatabaseCleaner;
 import com.sentinelmesh.TestQueueConfig;
@@ -16,6 +21,8 @@ import com.sentinelmesh.devices.CreateDeviceResponse;
 import com.sentinelmesh.devices.DeviceService;
 import com.sentinelmesh.devices.DeviceType;
 import com.sentinelmesh.devices.requests.CreateDeviceRequest;
+import com.sentinelmesh.realtime.DashboardEventBroadcaster;
+import com.sentinelmesh.realtime.DashboardEventType;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -36,6 +43,9 @@ class SecurityEventServiceAsyncTest {
 
     @Autowired
     private TestDatabaseCleaner testDatabaseCleaner;
+    
+    @MockitoBean
+    private DashboardEventBroadcaster dashboardEventBroadcaster;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +74,11 @@ class SecurityEventServiceAsyncTest {
 
         assertEquals(1, eventProcessingQueue.getQueuedEventIds().size());
         assertEquals(response.getId(), eventProcessingQueue.getQueuedEventIds().get(0));
+        
+        verify(dashboardEventBroadcaster).broadcast(
+                eq(DashboardEventType.SECURITY_EVENT_CREATED),
+                any()
+        );
     }
 
     private CreateDeviceResponse createDevice() {

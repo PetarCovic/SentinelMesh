@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
@@ -10,7 +11,6 @@ import {
   resolveAlert,
 } from "./api/sentinelMeshApi";
 import type { Alert, Device, PageResponse, SecurityEvent } from "./types";
-import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("./api/sentinelMeshApi", () => ({
   getDevices: vi.fn(),
@@ -20,6 +20,41 @@ vi.mock("./api/sentinelMeshApi", () => ({
   acknowledgeAlert: vi.fn(),
   resolveAlert: vi.fn(),
 }));
+
+class MockWebSocket {
+  static instances: MockWebSocket[] = [];
+
+  onopen: (() => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  url: string;
+  close = vi.fn();
+
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+  }
+
+  triggerOpen() {
+    this.onopen?.();
+  }
+
+  triggerMessage(data: unknown) {
+    this.onmessage?.({
+      data: JSON.stringify(data),
+    } as MessageEvent);
+  }
+
+  triggerClose() {
+    this.onclose?.();
+  }
+
+  triggerError() {
+    this.onerror?.();
+  }
+}
 
 const mockGetDevices = vi.mocked(getDevices);
 const mockGetRecentEvents = vi.mocked(getRecentEvents);
@@ -143,7 +178,13 @@ function mockSuccessfulDashboardLoad() {
 describe("App dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
     mockSuccessfulDashboardLoad();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   test("renders the dashboard title", async () => {
@@ -174,7 +215,9 @@ describe("App dashboard", () => {
     expect(screen.getAllByText("Garage Camera").length).toBeGreaterThan(0);
     expect(screen.getByText("PERSON_DETECTED")).toBeInTheDocument();
     expect(screen.getByText("MOTION_DETECTED")).toBeInTheDocument();
-    expect(screen.getAllByText("HIGH security event: PERSON_DETECTED").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("HIGH security event: PERSON_DETECTED").length
+    ).toBeGreaterThan(0);
 
     expect(mockGetDevices).toHaveBeenCalledTimes(1);
     expect(mockGetRecentEvents).toHaveBeenCalledWith(0, 50);
@@ -188,7 +231,9 @@ describe("App dashboard", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("HIGH security event: PERSON_DETECTED").length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText("HIGH security event: PERSON_DETECTED").length
+      ).toBeGreaterThan(0);
     });
 
     await user.click(screen.getByRole("button", { name: /acknowledge/i }));
@@ -209,7 +254,9 @@ describe("App dashboard", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("HIGH security event: PERSON_DETECTED").length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText("HIGH security event: PERSON_DETECTED").length
+      ).toBeGreaterThan(0);
     });
 
     await user.click(screen.getByRole("button", { name: /resolve/i }));
@@ -286,5 +333,113 @@ describe("App dashboard", () => {
     expect(
       screen.getByRole("button", { name: /pause auto-refresh/i })
     ).toBeInTheDocument();
+  });
+
+  test("creates a WebSocket connection to the dashboard endpoint", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBe(1);
+    });
+
+    expect(MockWebSocket.instances[0].url).toBe("ws://localhost:8080/ws/dashboard");
+  });
+
+  test("shows WebSocket connected when socket opens", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBe(1);
+    });
+
+    MockWebSocket.instances[0].triggerOpen();
+
+    await waitFor(() => {
+      expect(screen.getByText(/websocket: connected/i)).toBeInTheDocument();
+    });
+  });
+
+  test("shows WebSocket disconnected when socket closes", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBe(1);
+    });
+
+    MockWebSocket.instances[0].triggerOpen();
+
+    await waitFor(() => {
+      expect(screen.getByText(/websocket: connected/i)).toBeInTheDocument();
+    });
+
+    MockWebSocket.instances[0].triggerClose();
+
+    await waitFor(() => {
+      expect(screen.getByText(/websocket: disconnected/i)).toBeInTheDocument();
+    });
+  });
+
+  test("shows WebSocket disconnected when socket errors", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBe(1);
+    });
+
+    MockWebSocket.instances[0].triggerOpen();
+
+    await waitFor(() => {
+      expect(screen.getByText(/websocket: connected/i)).toBeInTheDocument();
+    });
+
+    MockWebSocket.instances[0].triggerError();
+
+    await waitFor(() => {
+      expect(screen.getByText(/websocket: disconnected/i)).toBeInTheDocument();
+    });
+  });
+
+  test("reloads dashboard when WebSocket message is received", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Front Door Camera").length).toBeGreaterThan(0);
+    });
+
+    expect(mockGetDevices).toHaveBeenCalledTimes(1);
+
+    MockWebSocket.instances[0].triggerMessage({
+      type: "ALERT_CREATED",
+      timestamp: new Date().toISOString(),
+      payload: {
+        alertId: "alert-123",
+        severity: "HIGH",
+      },
+    });
+
+    await waitFor(() => {
+      expect(mockGetDevices).toHaveBeenCalledTimes(2);
+      expect(mockGetRecentEvents).toHaveBeenCalledTimes(2);
+      expect(mockGetRecentAlerts).toHaveBeenCalledTimes(2);
+      expect(mockGetOpenAlertsPaged).toHaveBeenCalledTimes(2);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/last event: alert_created/i)).toBeInTheDocument();
+    });
+  });
+
+  test("closes WebSocket when dashboard unmounts", async () => {
+    const { unmount } = render(<App />);
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = MockWebSocket.instances[0];
+
+    unmount();
+
+    expect(socket.close).toHaveBeenCalled();
   });
 });
