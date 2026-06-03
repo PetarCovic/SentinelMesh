@@ -77,3 +77,56 @@ export interface PageResponse<T> {
   hasNext: boolean;
   hasPrevious: boolean;
 }
+
+export type AlertRuleEventType =
+  | "MOTION_DETECTED"
+  | "PERSON_DETECTED"
+  | "DOOR_OPENED"
+  | "SOUND_DETECTED";
+
+export type AlertRuleSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export type AlertRuleDeviceType =
+  | "CAMERA"
+  | "MOTION_SENSOR"
+  | "DOOR_SENSOR"
+  | "SOUND_SENSOR";
+
+export interface AlertRule {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  eventType: AlertRuleEventType | null;
+  minimumSeverity: AlertRuleSeverity | null;
+  deviceType: AlertRuleDeviceType | null;
+  alertSeverity: AlertRuleSeverity;
+  alertTitle: string;
+  alertMessage: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlertRuleRequest {
+  name: string;
+  description?: string;
+  enabled: boolean;
+  eventType?: AlertRuleEventType | null;
+  minimumSeverity?: AlertRuleSeverity | null;
+  deviceType?: AlertRuleDeviceType | null;
+  alertSeverity: AlertRuleSeverity;
+  alertTitle: string;
+  alertMessage: string;
+}
+
+export interface UpdateAlertRuleRequest {
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  eventType?: AlertRuleEventType | null;
+  minimumSeverity?: AlertRuleSeverity | null;
+  deviceType?: AlertRuleDeviceType | null;
+  alertSeverity?: AlertRuleSeverity;
+  alertTitle?: string;
+  alertMessage?: string;
+}

@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: sentinelmesh-backend
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/${POSTGRES_DB:sentinelmesh_dev}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+sentinelmesh:
+  event-processing:
+    enabled: true
+    queue-name: sentinelmesh:event-processing
+    worker-fixed-delay-ms: 1000
+    max-attempts: 3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  version: 0.1.0-docker

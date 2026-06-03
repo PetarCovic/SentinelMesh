@@ -301,3 +301,225 @@ tr:last-child td {
   padding: 6px 10px;
   border-radius: 999px;
 }
+
+.rules-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.rule-form {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-form h3 {
+  margin: 0 0 8px;
+}
+
+.rule-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.rule-form input,
+.rule-form textarea,
+.rule-form select {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.rule-form textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.rule-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.rule-form-actions button {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.rule-form-actions button:hover {
+  background: #334155;
+}
+
+.badge-enabled {
+  background: #064e3b;
+  color: #a7f3d0;
+}
+
+.badge-disabled {
+  background: #374151;
+  color: #d1d5db;
+}
+
+@media (max-width: 1200px) {
+  .rules-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.filter-bar input,
+.filter-bar select {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.filter-bar input {
+  min-width: 220px;
+}
+
+.filter-count {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.sort-direction-button {
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e5e7eb;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sort-direction-button:hover {
+  background: #334155;
+}
+
+.rules-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.rule-form {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-form h3 {
+  margin: 0 0 8px;
+}
+
+.rule-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.rule-form input,
+.rule-form textarea,
+.rule-form select {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.rule-form textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.rule-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.rule-form-actions button {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rule-form-actions button:hover {
+  background: #334155;
+}
+
+.badge-enabled {
+  background: #064e3b;
+  color: #a7f3d0;
+}
+
+.badge-disabled {
+  background: #374151;
+  color: #d1d5db;
+}
+
+@media (max-width: 1200px) {
+  .rules-layout {
+    grid-template-columns: 1fr;
+  }
+}

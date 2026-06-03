@@ -1,0 +1,14 @@
+.env
+*.env
+application-local.yml
+application-local.properties
+
+backend/storage/
+backend/target/
+frontend/node_modules/
+frontend/dist/
+simulator/target/
+benchmarks/target/
+
+.DS_Store
+Thumbs.db

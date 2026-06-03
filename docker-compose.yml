@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: sentinelmesh-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sentinelmesh_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - sentinelmesh_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sentinelmesh_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: sentinelmesh-redis-compose
+    ports:
+      - "6379:6379"
+    volumes:
+      - sentinelmesh_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentinelmesh-backend
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sentinelmesh_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sentinelmesh-frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - backend
+
+volumes:
+  sentinelmesh_postgres_data:
+  sentinelmesh_redis_data:
