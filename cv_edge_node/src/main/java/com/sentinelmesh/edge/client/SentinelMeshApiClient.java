@@ -9,6 +9,8 @@ import java.net.http.HttpResponse.BodyHandlers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 public class SentinelMeshApiClient 
 {
@@ -24,6 +26,8 @@ public class SentinelMeshApiClient
 		this.backendBaseUrl=backendBaseUrl;
 		httpClient=HttpClient.newHttpClient();
 		objectMapper=new ObjectMapper();
+		objectMapper.registerModule(new JavaTimeModule());
+		objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 	}
 	
 	public String get(String path, String apiKey)

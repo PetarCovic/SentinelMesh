@@ -4,10 +4,12 @@ import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.camera.FrameSource;
 import com.sentinelmesh.edge.camera.VideoFileFrameSource;
 import com.sentinelmesh.edge.camera.WebcamFrameSource;
+import com.sentinelmesh.edge.client.SecurityEventClient;
 import com.sentinelmesh.edge.client.SentinelMeshApiClient;
 import com.sentinelmesh.edge.config.ConfigLoader;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
 import com.sentinelmesh.edge.detection.MotionDetector;
+import com.sentinelmesh.edge.processing.DetectionCooldownTracker;
 import com.sentinelmesh.edge.processing.FrameProcessingLoop;
 import com.sentinelmesh.edge.processing.HeartbeatLoop;
 
@@ -19,6 +21,9 @@ public class CvEdgeNodeApplication
 	private HeartbeatLoop heartbeatLoop;
 	private MotionDetector motionDetector;
 	private FrameProcessingLoop processingLoop;
+	private DetectionCooldownTracker cooldownTracker;
+	private SecurityEventClient securityEventClient;
+	private volatile boolean shuttingDown=false;
 	
 	public static void main(String[] args)
 	{
@@ -33,15 +38,12 @@ public class CvEdgeNodeApplication
 		
 		fs=createFrameSource(config);
 		boolean startupSuccess=startupFrameSource();
-
+		
 		if(!startupSuccess)
 		{
 			shutdown();
 			return;
 		}
-		
-		apiClient=new SentinelMeshApiClient(config.getBackendBaseUrl());
-		startHeartbeatLoop(apiClient, config);
 		
 		motionDetector=new MotionDetector(
 				config.getMotionThreshold(), 
@@ -55,6 +57,13 @@ public class CvEdgeNodeApplication
 			return;
 		}
 		
+		Runtime.getRuntime().addShutdownHook(new Thread(()-> shutdown(), "cv-edge-node-shutdown"));
+		
+		apiClient=new SentinelMeshApiClient(config.getBackendBaseUrl());
+		startHeartbeatLoop(apiClient, config);
+		
+		cooldownTracker=new DetectionCooldownTracker(config.getDetectionCooldownSeconds());
+		securityEventClient=new SecurityEventClient(apiClient);
 		
 		try
 		{
@@ -66,7 +75,7 @@ public class CvEdgeNodeApplication
 		}
 	}
 	
-	public boolean startupFrameSource()
+	private boolean startupFrameSource()
 	{
 		if(fs==null)
 			throw new IllegalArgumentException("Frame Source cannot be null");
@@ -102,14 +111,12 @@ public class CvEdgeNodeApplication
 		}finally
 		{
 	        frame.close();
-
 		}
-        
         
         return true;
 	}
 	
-	public FrameSource createFrameSource(EdgeNodeConfig config)
+	private FrameSource createFrameSource(EdgeNodeConfig config)
 	{		
 		if(config==null)
 			throw new IllegalArgumentException("Config can not be null");
@@ -120,7 +127,7 @@ public class CvEdgeNodeApplication
 			return new WebcamFrameSource(config.getCameraIndex());
 	}
 	
-	public void startHeartbeatLoop(SentinelMeshApiClient apiClient, EdgeNodeConfig config)
+	private void startHeartbeatLoop(SentinelMeshApiClient apiClient, EdgeNodeConfig config)
 	{
 		if(apiClient==null)
 			throw new IllegalArgumentException("SentinelMeshApiClient cannot be null");
@@ -133,7 +140,7 @@ public class CvEdgeNodeApplication
 		heartbeatLoop.start();
 	}
 	
-	public boolean warmupMotionDetector(int frameCount)
+	private boolean warmupMotionDetector(int frameCount)
 	{
 		if(fs == null)
 			throw new IllegalArgumentException("Frame source cannot be null");
@@ -181,7 +188,7 @@ public class CvEdgeNodeApplication
 		}
 	}
 	
-	public void startProcessingLoop()
+	private void startProcessingLoop()
 	{
 		if(fs==null)
 			throw new IllegalArgumentException("Frame source cannot be null");
@@ -192,7 +199,18 @@ public class CvEdgeNodeApplication
 		if(config==null)
 			throw new IllegalArgumentException("EdgeNodeConfig cannot be null");
 		
-		processingLoop=new FrameProcessingLoop(fs, motionDetector, config);
+		if(cooldownTracker==null)
+			throw new IllegalArgumentException("CooldownTracker cannot be null");
+		
+		if(securityEventClient==null)
+			throw new IllegalArgumentException("SecurityEventClient cannot be null");
+		
+		processingLoop=new FrameProcessingLoop(
+				fs, 
+				motionDetector, 
+				config, 
+				cooldownTracker,
+				securityEventClient);
 		processingLoop.start();
 	}
 	
@@ -213,10 +231,26 @@ public class CvEdgeNodeApplication
 	
 	public void shutdown()
 	{	
+		if(shuttingDown)
+			return;
+		
+		shuttingDown=true;
+		
 		if(processingLoop!=null)
 		{
 			processingLoop.stop();
 			processingLoop=null;
+		}
+		
+		if(cooldownTracker!=null)
+		{
+			cooldownTracker.reset();
+			cooldownTracker=null;
+		}
+		
+		if(securityEventClient!=null)
+		{
+			securityEventClient=null;
 		}
 		
 		if(heartbeatLoop!=null)
@@ -231,7 +265,8 @@ public class CvEdgeNodeApplication
 			motionDetector=null;
 		}
 		
-		//Shutdown other resources
+		if(apiClient!=null)
+			apiClient=null;
 		
 		if(fs!=null)
 		{
