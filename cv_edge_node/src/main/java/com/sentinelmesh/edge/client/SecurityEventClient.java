@@ -1,7 +1,10 @@
 package com.sentinelmesh.edge.client;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinelmesh.edge.detection.DetectionResult;
 import com.sentinelmesh.edge.detection.DetectionType;
 import com.sentinelmesh.edge.dto.SecurityEventRequest;
@@ -11,6 +14,7 @@ import com.sentinelmesh.edge.events.SecurityEventType;
 public class SecurityEventClient 
 {
 	private final SentinelMeshApiClient apiClient;
+	private final ObjectMapper objectMapper;
 	
 	public SecurityEventClient(SentinelMeshApiClient apiClient)
 	{
@@ -18,6 +22,7 @@ public class SecurityEventClient
 			throw new IllegalArgumentException("SentinelMeshApiClient cannot be null");
 		
 		this.apiClient = apiClient;
+		this.objectMapper=new ObjectMapper();
 	}
 	
 	public String sendEvent(UUID deviceId, String apiKey, DetectionResult detection)
@@ -70,21 +75,26 @@ public class SecurityEventClient
 	
 	private String buildMetadataJson(UUID deviceId, DetectionResult detection)
 	{
-		StringBuilder sb = new StringBuilder();
-		
-		sb.append("{");
-		sb.append("\"deviceId\":\"").append(deviceId).append("\",");
-		sb.append("\"detectionType\":\"").append(detection.getType()).append("\",");
-		sb.append("\"boundingBox\":{");
-		sb.append("\"x\":").append(detection.getBoundingBoxX()).append(",");
-		sb.append("\"y\":").append(detection.getBoundingBoxY()).append(",");
-		sb.append("\"width\":").append(detection.getBoundingBoxWidth()).append(",");
-		sb.append("\"height\":").append(detection.getBoundingBoxHeight());
-		sb.append("},");
-		sb.append("\"metadata\":\"").append(escapeJson(detection.getMetadata().toString())).append("\"");
-		sb.append("}");
-		
-		return sb.toString();
+		try
+		{
+			Map<String, Object> boundingBox = new HashMap<>();
+			boundingBox.put("x", detection.getBoundingBoxX());
+			boundingBox.put("y", detection.getBoundingBoxY());
+			boundingBox.put("width", detection.getBoundingBoxWidth());
+			boundingBox.put("height", detection.getBoundingBoxHeight());
+			
+			Map<String, Object> metadata = new HashMap<>();
+			metadata.put("deviceId", deviceId.toString());
+			metadata.put("detectionType", detection.getType().toString());
+			metadata.put("boundingBox", boundingBox);
+			metadata.put("frameMetadata", detection.getMetadata());
+			
+			return objectMapper.writeValueAsString(metadata);
+		}
+		catch (Exception ex)
+		{
+			throw new IllegalStateException("Failed to build metadata JSON", ex);
+		}
 	}
 	
 	private String escapeJson(String value)

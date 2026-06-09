@@ -1,5 +1,7 @@
 package com.sentinelmesh.edge;
 
+import java.util.List;
+
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.camera.FrameSource;
 import com.sentinelmesh.edge.camera.VideoFileFrameSource;
@@ -8,10 +10,14 @@ import com.sentinelmesh.edge.client.SecurityEventClient;
 import com.sentinelmesh.edge.client.SentinelMeshApiClient;
 import com.sentinelmesh.edge.config.ConfigLoader;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
+import com.sentinelmesh.edge.debug.FrameDebugViewer;
+import com.sentinelmesh.edge.detection.DetectionPipeline;
 import com.sentinelmesh.edge.detection.MotionDetector;
 import com.sentinelmesh.edge.processing.DetectionCooldownTracker;
 import com.sentinelmesh.edge.processing.FrameProcessingLoop;
+import com.sentinelmesh.edge.processing.FrameProcessor;
 import com.sentinelmesh.edge.processing.HeartbeatLoop;
+import com.sentinelmesh.edge.util.ShutdownHook;
 
 public class CvEdgeNodeApplication
 {
@@ -19,10 +25,14 @@ public class CvEdgeNodeApplication
 	private FrameSource fs;
 	private SentinelMeshApiClient apiClient;
 	private HeartbeatLoop heartbeatLoop;
+	private DetectionPipeline detectionPipeline;
 	private MotionDetector motionDetector;
 	private FrameProcessingLoop processingLoop;
 	private DetectionCooldownTracker cooldownTracker;
 	private SecurityEventClient securityEventClient;
+	private FrameDebugViewer debugViewer;
+	private ShutdownHook shutdownHook;
+	private FrameProcessor frameProcessor;
 	private volatile boolean shuttingDown=false;
 	
 	public static void main(String[] args)
@@ -57,13 +67,19 @@ public class CvEdgeNodeApplication
 			return;
 		}
 		
-		Runtime.getRuntime().addShutdownHook(new Thread(()-> shutdown(), "cv-edge-node-shutdown"));
+		shutdownHook=new ShutdownHook("cv-edge-node-shutdown", ()->shutdown());
+		shutdownHook.register();
 		
 		apiClient=new SentinelMeshApiClient(config.getBackendBaseUrl());
 		startHeartbeatLoop(apiClient, config);
 		
 		cooldownTracker=new DetectionCooldownTracker(config.getDetectionCooldownSeconds());
 		securityEventClient=new SecurityEventClient(apiClient);
+		
+		if(config.isDebugViewerEnabled())
+			debugViewer=new FrameDebugViewer("SentinelMesh Motion Debug Viewer");
+		
+		detectionPipeline=new DetectionPipeline(List.of(motionDetector));
 		
 		try
 		{
@@ -193,8 +209,8 @@ public class CvEdgeNodeApplication
 		if(fs==null)
 			throw new IllegalArgumentException("Frame source cannot be null");
 		
-		if(motionDetector==null)
-			throw new IllegalArgumentException("Motion detector cannot be null");
+		if(detectionPipeline==null)
+			throw new IllegalArgumentException("DetectionPipeline cannot be null");
 		
 		if(config==null)
 			throw new IllegalArgumentException("EdgeNodeConfig cannot be null");
@@ -205,12 +221,15 @@ public class CvEdgeNodeApplication
 		if(securityEventClient==null)
 			throw new IllegalArgumentException("SecurityEventClient cannot be null");
 		
-		processingLoop=new FrameProcessingLoop(
-				fs, 
-				motionDetector, 
+		
+		frameProcessor=new FrameProcessor(
+				detectionPipeline, 
 				config, 
-				cooldownTracker,
-				securityEventClient);
+				cooldownTracker, 
+				securityEventClient, 
+				debugViewer);
+		
+		processingLoop=new FrameProcessingLoop(fs, frameProcessor, config);
 		processingLoop.start();
 	}
 	
@@ -242,21 +261,33 @@ public class CvEdgeNodeApplication
 			processingLoop=null;
 		}
 		
+		if(frameProcessor != null)
+		    frameProcessor = null;
+
+		if(detectionPipeline != null)
+		    detectionPipeline = null;
+		
+		if(debugViewer!=null)
+		{
+			debugViewer.close();
+			debugViewer=null;
+		}
+		
 		if(cooldownTracker!=null)
 		{
 			cooldownTracker.reset();
 			cooldownTracker=null;
 		}
 		
-		if(securityEventClient!=null)
-		{
-			securityEventClient=null;
-		}
-		
 		if(heartbeatLoop!=null)
 		{	
 			heartbeatLoop.stop();
 			heartbeatLoop=null;
+		}
+		
+		if(securityEventClient!=null)
+		{
+			securityEventClient=null;
 		}
 		
 		if(motionDetector!=null)
@@ -273,5 +304,7 @@ public class CvEdgeNodeApplication
 			fs.close();
 			fs=null;
 		}
+		
+		shutdownHook=null;
 	}
 }

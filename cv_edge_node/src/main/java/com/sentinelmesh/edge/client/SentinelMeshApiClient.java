@@ -11,12 +11,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.sentinelmesh.edge.util.JsonUtils;
 
 public class SentinelMeshApiClient 
 {
 	private final String backendBaseUrl;
 	private final HttpClient httpClient;
-	private final ObjectMapper objectMapper;
+	private final JsonUtils jsonUtils;
 	
 	public SentinelMeshApiClient(String backendBaseUrl)
 	{
@@ -25,9 +26,7 @@ public class SentinelMeshApiClient
 		
 		this.backendBaseUrl=backendBaseUrl;
 		httpClient=HttpClient.newHttpClient();
-		objectMapper=new ObjectMapper();
-		objectMapper.registerModule(new JavaTimeModule());
-		objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+		this.jsonUtils = new JsonUtils();
 	}
 	
 	public String get(String path, String apiKey)
@@ -58,17 +57,57 @@ public class SentinelMeshApiClient
 		}
 	}
 	
+	public String post(String path, Object body)
+	{
+		if(body==null)
+			throw new IllegalArgumentException("Body cannot be null");
+		
+		String jsonBody;
+		try {
+			jsonBody=jsonUtils.toJson(body);
+			
+			HttpRequest request=buildRequest(path)
+					.header("Content-Type", "application/json")
+					.POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+					.build();
+			
+			HttpResponse<String> response=httpClient.send(request, BodyHandlers.ofString());
+			
+			int statusCode=response.statusCode();
+			
+			if(statusCode<200 || statusCode>=300)
+				throw new IllegalStateException(
+	                    "POST request failed. Path: " + path +
+	                    ", status: " + statusCode +
+	                    ", body: " + response.body()
+	            );
+			
+			return response.body();
+		} catch (JsonProcessingException ex) 
+		{
+			throw new IllegalStateException("Failed to serialize request body for path: "+path, ex);
+		} catch (IOException ex) 
+		{
+			throw new IllegalStateException("POST request failed for path: "+path, ex);
+		} catch (InterruptedException ex) 
+		{
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("POST request failed for path: "+path, ex);
+		}
+	}
+	
 	public String post(String path, Object body, String apiKey)
 	{
 		if(body==null)
 			throw new IllegalArgumentException("Body cannot be null");
 		
+		String jsonBody;
 		try {
-			String json = objectMapper.writeValueAsString(body);
+			jsonBody=jsonUtils.toJson(body);
 			
 			HttpRequest request=buildRequest(path, apiKey)
 					.header("Content-Type", "application/json")
-					.POST(HttpRequest.BodyPublishers.ofString(json))
+					.POST(HttpRequest.BodyPublishers.ofString(jsonBody))
 					.build();
 			
 			HttpResponse<String> response=httpClient.send(request, BodyHandlers.ofString());
@@ -103,7 +142,7 @@ public class SentinelMeshApiClient
 		
 		try
 		{
-			String json=objectMapper.writeValueAsString(body);
+			String json=jsonUtils.toJson(body);
 			
 			HttpRequest request=buildRequest(path, apiKey)
 					.header("Content-Type", "application/json")
@@ -133,6 +172,20 @@ public class SentinelMeshApiClient
 			Thread.currentThread().interrupt();
 			throw new IllegalStateException("PATCH request failed for path: "+path, ex);
 		}
+	}
+	
+	public HttpRequest.Builder buildRequest(String path)
+	{
+		if(path==null || path.isBlank())
+			throw new IllegalArgumentException("Path cannot be null or blank");
+		
+		String url=normalizeUrl(path);
+		
+		HttpRequest.Builder builder=HttpRequest.newBuilder()
+				.uri(URI.create(url))
+				.header("Accept", "application/json");
+		
+		return builder;
 	}
 	
 	public HttpRequest.Builder buildRequest(String path, String apiKey)
@@ -165,7 +218,7 @@ public class SentinelMeshApiClient
 		    
 		    try
 		    {
-		    	return objectMapper.readValue(responseBody, responseType);
+		    	return jsonUtils.fromJson(responseBody, responseType);
 		    }catch(Exception ex)
 		    {
 		    	throw new IllegalStateException("Failed to parse backend response as "

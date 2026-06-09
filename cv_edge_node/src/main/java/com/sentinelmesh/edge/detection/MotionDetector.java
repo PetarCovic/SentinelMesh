@@ -16,7 +16,7 @@ import org.bytedeco.opencv.opencv_video.BackgroundSubtractorMOG2;
 
 import com.sentinelmesh.edge.camera.Frame;
 
-public class MotionDetector 
+public class MotionDetector implements Detector
 {
 	private final double motionThreshold;
 	private final double minimumContourArea;
@@ -45,8 +45,9 @@ public class MotionDetector
 		this.nonMaxSuppression=new NonMaxSuppression();
 	}
 	
+	@Override
 	public List<DetectionResult> detect(Frame frame)
-	{	
+	{
 		validateFrame(frame);
 		
 		Mat fgMask=new Mat();

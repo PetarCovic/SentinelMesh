@@ -1,6 +1,7 @@
 package com.sentinelmesh.edge.dto;
 
 import java.time.Instant;
+import java.util.Map;
 
 import com.sentinelmesh.edge.events.SecurityEventSeverity;
 import com.sentinelmesh.edge.events.SecurityEventType;

@@ -21,6 +21,7 @@ public class EdgeNodeConfig
 	private final int heartbeatIntervalSeconds;
 	private final boolean enableMotionDetection;
 	private final boolean enablePersonDetection;
+	private final boolean enableDebugViewer;
 	
 	public EdgeNodeConfig(
 			String backendBaseUrl,
@@ -37,7 +38,8 @@ public class EdgeNodeConfig
 			int detectionCooldownSeconds,
 			int heartbeatIntervalSeconds,
 			boolean enableMotionDetection,
-			boolean enablePersonDetection
+			boolean enablePersonDetection,
+			boolean enableDebugViewer
 			)
 	{
 		if(backendBaseUrl==null || backendBaseUrl.isBlank())
@@ -86,11 +88,14 @@ public class EdgeNodeConfig
 
 		if(heartbeatIntervalSeconds<=0)
 			throw new IllegalArgumentException("Heartbeat interval seconds must be greater than 0");
+		
 		this.heartbeatIntervalSeconds=heartbeatIntervalSeconds;
 		
 		this.enableMotionDetection=enableMotionDetection;
 		
 		this.enablePersonDetection=enablePersonDetection;
+		
+		this.enableDebugViewer=enableDebugViewer;
 	}
 	
 	public String getBackendBaseUrl()
@@ -166,6 +171,17 @@ public class EdgeNodeConfig
 	public boolean isPersonDetectionEnabled()
 	{
 		return enablePersonDetection;
+	}
+	
+	public boolean isDetectionEnabled()
+	{
+		return enableMotionDetection
+				|| enablePersonDetection;
+	}
+	
+	public boolean isDebugViewerEnabled()
+	{
+		return enableDebugViewer;
 	}
 	
 	public boolean hasVideoFilePath()
