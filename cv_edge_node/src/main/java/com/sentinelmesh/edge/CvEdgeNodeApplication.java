@@ -1,5 +1,6 @@
 package com.sentinelmesh.edge;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.sentinelmesh.edge.camera.Frame;
@@ -12,7 +13,9 @@ import com.sentinelmesh.edge.config.ConfigLoader;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
 import com.sentinelmesh.edge.debug.FrameDebugViewer;
 import com.sentinelmesh.edge.detection.DetectionPipeline;
+import com.sentinelmesh.edge.detection.Detector;
 import com.sentinelmesh.edge.detection.MotionDetector;
+import com.sentinelmesh.edge.detection.PersonDetector;
 import com.sentinelmesh.edge.processing.DetectionCooldownTracker;
 import com.sentinelmesh.edge.processing.FrameProcessingLoop;
 import com.sentinelmesh.edge.processing.FrameProcessor;
@@ -27,6 +30,7 @@ public class CvEdgeNodeApplication
 	private HeartbeatLoop heartbeatLoop;
 	private DetectionPipeline detectionPipeline;
 	private MotionDetector motionDetector;
+	private PersonDetector personDetector;
 	private FrameProcessingLoop processingLoop;
 	private DetectionCooldownTracker cooldownTracker;
 	private SecurityEventClient securityEventClient;
@@ -55,13 +59,17 @@ public class CvEdgeNodeApplication
 			return;
 		}
 		
-		motionDetector=new MotionDetector(
-				config.getMotionThreshold(), 
-				config.getMinimumContourArea());
+		if(config.isMotionDetectionEnabled())
+			motionDetector=new MotionDetector(
+					config.getMotionThreshold(), 
+					config.getMinimumContourArea());
+		
+		if(config.isPersonDetectionEnabled())
+			personDetector=new PersonDetector();
 		
 		boolean warmupSuccess=warmupMotionDetector(5);
 		
-		if(!warmupSuccess)
+		if(!warmupSuccess && config.isMotionDetectionEnabled())
 		{
 			shutdown();
 			return;
@@ -79,7 +87,14 @@ public class CvEdgeNodeApplication
 		if(config.isDebugViewerEnabled())
 			debugViewer=new FrameDebugViewer("SentinelMesh Motion Debug Viewer");
 		
-		detectionPipeline=new DetectionPipeline(List.of(motionDetector));
+		List<Detector> detectors=new ArrayList<>();
+		
+		if(config.isMotionDetectionEnabled())
+			detectors.add(motionDetector);
+		if(config.isPersonDetectionEnabled())
+			detectors.add(personDetector);
+		
+		detectionPipeline=new DetectionPipeline(detectors);
 		
 		try
 		{
@@ -158,6 +173,9 @@ public class CvEdgeNodeApplication
 	
 	private boolean warmupMotionDetector(int frameCount)
 	{
+		if(config.isMotionDetectionEnabled())
+			return false;
+		
 		if(fs == null)
 			throw new IllegalArgumentException("Frame source cannot be null");
 		

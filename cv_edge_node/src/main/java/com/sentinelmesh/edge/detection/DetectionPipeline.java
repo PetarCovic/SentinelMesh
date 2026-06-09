@@ -11,8 +11,8 @@ public class DetectionPipeline implements Detector
 	
 	public DetectionPipeline(List<Detector> detectors)
 	{
-		if(detectors==null || detectors.isEmpty())
-			throw new IllegalArgumentException("Detectors cannot be null or empty");
+		if(detectors==null)
+			throw new IllegalArgumentException("Detectors cannot be null");
 		
 		for(Detector detector : detectors)
 		{
