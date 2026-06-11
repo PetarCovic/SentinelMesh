@@ -49,13 +49,6 @@ public class FrameProcessor
 		if(frame==null || frame.isEmpty())
 			throw new IllegalArgumentException("Frame cannot be null or empty");
 		
-		if(!config.isDetectionEnabled())
-		{
-			if(debugViewer!=null && debugViewer.isOpen())
-				debugViewer.show(frame, List.of());
-			return;
-		}
-		
 		List<DetectionResult> detections=detectionPipeline.detect(frame);
 		
 		if(debugViewer!=null && debugViewer.isOpen())

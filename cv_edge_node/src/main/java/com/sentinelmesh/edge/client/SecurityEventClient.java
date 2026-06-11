@@ -57,6 +57,9 @@ public class SecurityEventClient
 		if(detectionType == DetectionType.MOTION_DETECTED)
 			return SecurityEventType.MOTION_DETECTED;
 		
+		if(detectionType==DetectionType.PERSON_DETECTED)
+			return SecurityEventType.PERSON_DETECTED;
+		
 		throw new IllegalArgumentException("Unsupported detection type: " + detectionType);
 	}
 	

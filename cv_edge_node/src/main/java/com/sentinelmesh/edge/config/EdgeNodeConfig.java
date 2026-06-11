@@ -17,6 +17,8 @@ public class EdgeNodeConfig
 	private final int targetFps;
 	private final double motionThreshold;
 	private final double minimumContourArea;
+	private final double personConfidenceThreshold;
+	private final double yoloNmsThreshold;
 	private final int detectionCooldownSeconds;
 	private final int heartbeatIntervalSeconds;
 	private final boolean enableMotionDetection;
@@ -35,6 +37,8 @@ public class EdgeNodeConfig
 			int targetFps,
 			double motionThreshold,
 			double minimumContourArea,
+			double personConfidenceThreshold,
+			double yoloNmsThreshold,
 			int detectionCooldownSeconds,
 			int heartbeatIntervalSeconds,
 			boolean enableMotionDetection,
@@ -82,6 +86,14 @@ public class EdgeNodeConfig
 			throw new IllegalArgumentException("Minimum contour area must be greater than 0");
 		this.minimumContourArea=minimumContourArea;
 
+		if(personConfidenceThreshold<0 || personConfidenceThreshold>1)
+			throw new IllegalArgumentException("PersonConfidenceThreshold must be between 0 and 1");
+		this.personConfidenceThreshold=personConfidenceThreshold;
+		
+		if(yoloNmsThreshold<0 || yoloNmsThreshold>1)
+			throw new IllegalArgumentException("YoloNmsThreshold must be between 0 and 1");
+		this.yoloNmsThreshold=yoloNmsThreshold;
+		
 		if(detectionCooldownSeconds<0)
 			throw new IllegalArgumentException("Detection cooldown seconds cannot be less than 0");
 		this.detectionCooldownSeconds=detectionCooldownSeconds;
@@ -151,6 +163,16 @@ public class EdgeNodeConfig
 	public double getMinimumContourArea()
 	{
 		return minimumContourArea;
+	}
+	
+	public double getPersonConfidenceThreshold()
+	{
+		return personConfidenceThreshold;
+	}
+	
+	public double getYoloNmsThreshold()
+	{
+		return yoloNmsThreshold;
 	}
 	
 	public int getDetectionCooldownSeconds()

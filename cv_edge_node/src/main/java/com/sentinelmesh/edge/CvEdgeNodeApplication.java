@@ -21,6 +21,12 @@ import com.sentinelmesh.edge.processing.FrameProcessingLoop;
 import com.sentinelmesh.edge.processing.FrameProcessor;
 import com.sentinelmesh.edge.processing.HeartbeatLoop;
 import com.sentinelmesh.edge.util.ShutdownHook;
+import com.sentinelmesh.edge.yolo.YoloDetectionResultMapper;
+import com.sentinelmesh.edge.yolo.YoloModel;
+import com.sentinelmesh.edge.yolo.YoloModelFactory;
+import com.sentinelmesh.edge.yolo.YoloOutputDecoder;
+import com.sentinelmesh.edge.yolo.YoloPostProcessor;
+import com.sentinelmesh.edge.yolo.YoloPreprocessor;
 
 public class CvEdgeNodeApplication
 {
@@ -65,11 +71,24 @@ public class CvEdgeNodeApplication
 					config.getMinimumContourArea());
 		
 		if(config.isPersonDetectionEnabled())
-			personDetector=new PersonDetector();
+		{
+		    YoloModel model = YoloModelFactory.createTinyTestModel();
+
+		    personDetector = new PersonDetector(
+		            new YoloPreprocessor(),
+		            model,
+		            new YoloOutputDecoder("person"),
+		            new YoloPostProcessor(
+		                    config.getPersonConfidenceThreshold(),
+		                    config.getYoloNmsThreshold()
+		            ),
+		            new YoloDetectionResultMapper()
+		    );
+		}
 		
 		boolean warmupSuccess=warmupMotionDetector(5);
 		
-		if(!warmupSuccess && config.isMotionDetectionEnabled())
+		if(!warmupSuccess)
 		{
 			shutdown();
 			return;
@@ -93,6 +112,9 @@ public class CvEdgeNodeApplication
 			detectors.add(motionDetector);
 		if(config.isPersonDetectionEnabled())
 			detectors.add(personDetector);
+		
+		if(detectors.isEmpty())
+			System.out.println("No detection features enabled. Edge node will run without detections");
 		
 		detectionPipeline=new DetectionPipeline(detectors);
 		
@@ -173,8 +195,8 @@ public class CvEdgeNodeApplication
 	
 	private boolean warmupMotionDetector(int frameCount)
 	{
-		if(config.isMotionDetectionEnabled())
-			return false;
+		if(!config.isMotionDetectionEnabled())
+			return true;
 		
 		if(fs == null)
 			throw new IllegalArgumentException("Frame source cannot be null");
@@ -312,6 +334,12 @@ public class CvEdgeNodeApplication
 		{
 			motionDetector.close();
 			motionDetector=null;
+		}
+		
+		if(personDetector!=null)
+		{
+			personDetector.close();
+			personDetector=null;
 		}
 		
 		if(apiClient!=null)
