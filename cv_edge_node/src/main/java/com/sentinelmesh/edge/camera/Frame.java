@@ -16,6 +16,19 @@ public class Frame
 		image=new Mat();
 	}
 	
+	public Frame(
+			Mat image,
+			int frameId,
+			Instant timestamp,
+			String sourceName
+			)
+	{
+		this.frameId=frameId;
+		this.timestamp=timestamp;
+		this.image=image;
+		this.sourceName=sourceName;
+	}
+	
 	public int getFrameId()
 	{
 		return frameId;
@@ -49,6 +62,21 @@ public class Frame
 	public boolean isEmpty()
 	{
 		return image==null || image.empty();
+	}
+	
+	public Frame copy()
+	{
+		if(isEmpty())
+			throw new IllegalStateException("Cannot copy an empty frame");
+
+		Mat imageCopy = image.clone();
+
+		return new Frame(
+				imageCopy,
+				frameId,
+				timestamp,
+				sourceName
+		);
 	}
 	
 	public void update(

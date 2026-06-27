@@ -1,0 +1,24 @@
+{
+  "modelName": "yolo-v1-person-small",
+  "inputWidth": 448,
+  "inputHeight": 448,
+  "gridSize": 7,
+  "boxesPerCell": 2,
+  "classNames": ["person"],
+
+  "batchSize": 4,
+  "epochs": 20,
+  "learningRate": 0.0001,
+
+  "lambdaCoord": 5.0,
+  "lambdaObject": 5.0,
+  "lambdaNoObject": 0.1,
+
+  "trainImagesDir": "datasets/person-detection/coco2017/converted/train/images",
+  "trainLabelsDir": "datasets/person-detection/coco2017/converted/train/labels",
+  "valImagesDir": "datasets/person-detection/coco2017/converted/val/images",
+  "valLabelsDir": "datasets/person-detection/coco2017/converted/val/labels",
+
+  "checkpointDir": "training/yolo-v1/checkpoints",
+  "exportPath": "training/yolo-v1/exports/yolo-v1-person.weights"
+}

@@ -3,6 +3,7 @@ package com.sentinelmesh.edge.config;
 import java.util.UUID;
 
 import com.sentinelmesh.edge.devices.DeviceType;
+import com.sentinelmesh.edge.yolo.YoloModelMode;
 
 public class EdgeNodeConfig 
 {
@@ -17,6 +18,8 @@ public class EdgeNodeConfig
 	private final int targetFps;
 	private final double motionThreshold;
 	private final double minimumContourArea;
+	private final YoloModelMode yoloModelMode;
+	private final String yoloWeightsPath;
 	private final double personConfidenceThreshold;
 	private final double yoloNmsThreshold;
 	private final int detectionCooldownSeconds;
@@ -37,6 +40,8 @@ public class EdgeNodeConfig
 			int targetFps,
 			double motionThreshold,
 			double minimumContourArea,
+			YoloModelMode yoloModelMode,
+			String yoloWeightsPath,
 			double personConfidenceThreshold,
 			double yoloNmsThreshold,
 			int detectionCooldownSeconds,
@@ -48,65 +53,66 @@ public class EdgeNodeConfig
 	{
 		if(backendBaseUrl==null || backendBaseUrl.isBlank())
 			throw new IllegalArgumentException("Backend base url cannot be null or blank");
-		this.backendBaseUrl=backendBaseUrl;	
 		
 		if(deviceId==null)
 			throw new IllegalArgumentException("Device Id cannot be null");
-		this.deviceId=deviceId;
-
+		
 		if(apiKey==null || apiKey.isBlank())
 			throw new IllegalArgumentException("Api key cannot be null or blank");
-		this.apiKey=apiKey;
-
+		
 		if(deviceName==null || deviceName.isBlank())
 			throw new IllegalArgumentException("Device name cannot be null or blank");
-		this.deviceName=deviceName;
-
+		
 		if(deviceType==null)
 			throw new IllegalArgumentException("Device type cannot be null");
-		this.deviceType=deviceType;
-
-		this.deviceLocation=deviceLocation;
-
+		
 		if(cameraIndex<0)
 			throw new IllegalArgumentException("Camera index cannot be below 0");
-		this.cameraIndex=cameraIndex;
 		
-		this.videoFilePath=videoFilePath;
-
 		if(targetFps<=0)
 			throw new IllegalArgumentException("Target fps must be greater than 0");
-		this.targetFps=targetFps;
-
+		
 		if(motionThreshold<=0)
 			throw new IllegalArgumentException("Motion threshold must be greater than 0");
-		this.motionThreshold=motionThreshold;
-
+		
 		if(minimumContourArea<=0)
 			throw new IllegalArgumentException("Minimum contour area must be greater than 0");
-		this.minimumContourArea=minimumContourArea;
-
+		
+		if(yoloModelMode==null)
+			throw new IllegalArgumentException("YoloModelMode cannot be null");
+		
 		if(personConfidenceThreshold<0 || personConfidenceThreshold>1)
 			throw new IllegalArgumentException("PersonConfidenceThreshold must be between 0 and 1");
-		this.personConfidenceThreshold=personConfidenceThreshold;
 		
 		if(yoloNmsThreshold<0 || yoloNmsThreshold>1)
 			throw new IllegalArgumentException("YoloNmsThreshold must be between 0 and 1");
-		this.yoloNmsThreshold=yoloNmsThreshold;
 		
 		if(detectionCooldownSeconds<0)
 			throw new IllegalArgumentException("Detection cooldown seconds cannot be less than 0");
-		this.detectionCooldownSeconds=detectionCooldownSeconds;
-
+		
 		if(heartbeatIntervalSeconds<=0)
 			throw new IllegalArgumentException("Heartbeat interval seconds must be greater than 0");
 		
+		
+		this.backendBaseUrl=backendBaseUrl;	
+		this.deviceId=deviceId;
+		this.apiKey=apiKey;
+		this.deviceName=deviceName;
+		this.deviceType=deviceType;
+		this.deviceLocation=deviceLocation;
+		this.cameraIndex=cameraIndex;
+		this.videoFilePath=videoFilePath;
+		this.targetFps=targetFps;
+		this.motionThreshold=motionThreshold;
+		this.minimumContourArea=minimumContourArea;
+		this.yoloModelMode=yoloModelMode;
+		this.yoloWeightsPath=yoloWeightsPath;
+		this.personConfidenceThreshold=personConfidenceThreshold;
+		this.yoloNmsThreshold=yoloNmsThreshold;
+		this.detectionCooldownSeconds=detectionCooldownSeconds;
 		this.heartbeatIntervalSeconds=heartbeatIntervalSeconds;
-		
 		this.enableMotionDetection=enableMotionDetection;
-		
 		this.enablePersonDetection=enablePersonDetection;
-		
 		this.enableDebugViewer=enableDebugViewer;
 	}
 	
@@ -163,6 +169,16 @@ public class EdgeNodeConfig
 	public double getMinimumContourArea()
 	{
 		return minimumContourArea;
+	}
+	
+	public YoloModelMode getYoloModelMode()
+	{
+		return yoloModelMode;
+	}
+	
+	public String getYoloWeightsPath()
+	{
+		return yoloWeightsPath;
 	}
 	
 	public double getPersonConfidenceThreshold()

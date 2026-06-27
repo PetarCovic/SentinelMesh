@@ -3,6 +3,8 @@ package com.sentinelmesh.edge.yolo;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.sentinelmesh.edge.yolo.v1.YoloV1Output;
+
 public class YoloPostProcessor 
 {
 	private final double confidenceThreshold;
@@ -20,7 +22,7 @@ public class YoloPostProcessor
 		this.nmsThreshold=nmsThreshold;
 	}
 	
-	public List<YoloPrediction> process(YoloOutput output)
+	public List<YoloPrediction> process(YoloV1Output output)
 	{
 		if(output==null)
 			throw new IllegalArgumentException("Output cannot be null");

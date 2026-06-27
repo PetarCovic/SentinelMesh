@@ -1,5 +1,6 @@
 package com.sentinelmesh.edge;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +16,7 @@ import com.sentinelmesh.edge.debug.FrameDebugViewer;
 import com.sentinelmesh.edge.detection.DetectionPipeline;
 import com.sentinelmesh.edge.detection.Detector;
 import com.sentinelmesh.edge.detection.MotionDetector;
+import com.sentinelmesh.edge.detection.PersonDetectionWorker;
 import com.sentinelmesh.edge.detection.PersonDetector;
 import com.sentinelmesh.edge.processing.DetectionCooldownTracker;
 import com.sentinelmesh.edge.processing.FrameProcessingLoop;
@@ -22,11 +24,11 @@ import com.sentinelmesh.edge.processing.FrameProcessor;
 import com.sentinelmesh.edge.processing.HeartbeatLoop;
 import com.sentinelmesh.edge.util.ShutdownHook;
 import com.sentinelmesh.edge.yolo.YoloDetectionResultMapper;
-import com.sentinelmesh.edge.yolo.YoloModel;
-import com.sentinelmesh.edge.yolo.YoloModelFactory;
-import com.sentinelmesh.edge.yolo.YoloOutputDecoder;
 import com.sentinelmesh.edge.yolo.YoloPostProcessor;
 import com.sentinelmesh.edge.yolo.YoloPreprocessor;
+import com.sentinelmesh.edge.yolo.v1.YoloV1Model;
+import com.sentinelmesh.edge.yolo.v1.YoloV1ModelFactory;
+import com.sentinelmesh.edge.yolo.v1.YoloV1OutputDecoder;
 
 public class CvEdgeNodeApplication
 {
@@ -37,6 +39,7 @@ public class CvEdgeNodeApplication
 	private DetectionPipeline detectionPipeline;
 	private MotionDetector motionDetector;
 	private PersonDetector personDetector;
+	private PersonDetectionWorker personDetectionWorker;
 	private FrameProcessingLoop processingLoop;
 	private DetectionCooldownTracker cooldownTracker;
 	private SecurityEventClient securityEventClient;
@@ -56,6 +59,9 @@ public class CvEdgeNodeApplication
 	{
 		config=new ConfigLoader().load();
 		
+		if(config==null)
+			throw new IllegalStateException("EdgeNodeConfig cannot be null");
+		
 		fs=createFrameSource(config);
 		boolean startupSuccess=startupFrameSource();
 		
@@ -72,18 +78,8 @@ public class CvEdgeNodeApplication
 		
 		if(config.isPersonDetectionEnabled())
 		{
-		    YoloModel model = YoloModelFactory.createTinyTestModel();
-
-		    personDetector = new PersonDetector(
-		            new YoloPreprocessor(),
-		            model,
-		            new YoloOutputDecoder("person"),
-		            new YoloPostProcessor(
-		                    config.getPersonConfidenceThreshold(),
-		                    config.getYoloNmsThreshold()
-		            ),
-		            new YoloDetectionResultMapper()
-		    );
+			personDetector=createPersonDetector();
+			personDetectionWorker=new PersonDetectionWorker(personDetector);
 		}
 		
 		boolean warmupSuccess=warmupMotionDetector(5);
@@ -110,14 +106,16 @@ public class CvEdgeNodeApplication
 		
 		if(config.isMotionDetectionEnabled())
 			detectors.add(motionDetector);
-		if(config.isPersonDetectionEnabled())
-			detectors.add(personDetector);
 		
-		if(detectors.isEmpty())
-			System.out.println("No detection features enabled. Edge node will run without detections");
+		if(detectors.isEmpty() && !config.isPersonDetectionEnabled())
+			System.out.println("No detection features enabled. "
+					+ "Edge node will run without detections");
+		else if(detectors.isEmpty())
+			System.out.println("No synchronous detectors enabled. "
+					+ "Edge node will use async person detection only.");
 		
 		detectionPipeline=new DetectionPipeline(detectors);
-		
+				
 		try
 		{
 			startProcessingLoop();
@@ -264,6 +262,7 @@ public class CvEdgeNodeApplication
 		
 		frameProcessor=new FrameProcessor(
 				detectionPipeline, 
+				personDetectionWorker,
 				config, 
 				cooldownTracker, 
 				securityEventClient, 
@@ -336,10 +335,16 @@ public class CvEdgeNodeApplication
 			motionDetector=null;
 		}
 		
-		if(personDetector!=null)
+		if(personDetectionWorker != null)
+		{
+			personDetectionWorker.close();
+			personDetectionWorker = null;
+			personDetector = null;
+		}
+		else if(personDetector != null)
 		{
 			personDetector.close();
-			personDetector=null;
+			personDetector = null;
 		}
 		
 		if(apiClient!=null)
@@ -352,5 +357,44 @@ public class CvEdgeNodeApplication
 		}
 		
 		shutdownHook=null;
+	}
+	
+	private PersonDetector createPersonDetector()
+	{
+		YoloV1Model model;
+
+		switch(config.getYoloModelMode())
+		{
+		    case TINY_TEST:
+		        model = YoloV1ModelFactory.createTinyTestModel();
+		        break;
+
+		    case RANDOM_TEST:
+		        model = YoloV1ModelFactory.createRandomPersonModel();
+		        break;
+
+		    case TRAINED_WEIGHTS:
+		        model = YoloV1ModelFactory.createFromWeights(
+		                Path.of(config.getYoloWeightsPath())
+		        );
+		        break;
+
+		    default:
+		        throw new IllegalStateException("Unsupported YOLO model mode: " 
+		    + config.getYoloModelMode());
+		}
+		
+		System.out.println("Creating person detector with YOLO mode: " + config.getYoloModelMode());
+		
+		return new PersonDetector(
+		        new YoloPreprocessor(),
+		        model,
+		        new YoloV1OutputDecoder("person"),
+		        new YoloPostProcessor(
+		                config.getPersonConfidenceThreshold(),
+		                config.getYoloNmsThreshold()
+		        ),
+		        new YoloDetectionResultMapper()
+		);
 	}
 }

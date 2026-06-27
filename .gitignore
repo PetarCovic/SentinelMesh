@@ -9,6 +9,38 @@ frontend/node_modules/
 frontend/dist/
 simulator/target/
 benchmarks/target/
+edge/target/
 
+# IDE / OS
 .DS_Store
 Thumbs.db
+.classpath
+.project
+.settings/
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# Datasets
+datasets/
+
+# Training artifacts
+training/**/checkpoints/
+training/**/exports/
+training/**/*.weights
+training/**/*.ckpt
+training/**/*.pt
+training/**/*.pth
+training/**/*.onnx
+
+# Model artifacts
+edge/models/**/*.weights
+edge/models/**/*.ckpt
+edge/models/**/*.pt
+edge/models/**/*.pth
+edge/models/**/*.onnx
+
+# Keep model config files
+!edge/models/yolo-v1/*.json

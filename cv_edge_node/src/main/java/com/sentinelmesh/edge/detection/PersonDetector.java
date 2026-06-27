@@ -5,26 +5,26 @@ import java.util.List;
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.yolo.YoloDetectionResultMapper;
 import com.sentinelmesh.edge.yolo.YoloInput;
-import com.sentinelmesh.edge.yolo.YoloModel;
-import com.sentinelmesh.edge.yolo.YoloOutput;
-import com.sentinelmesh.edge.yolo.YoloOutputDecoder;
 import com.sentinelmesh.edge.yolo.YoloPostProcessor;
 import com.sentinelmesh.edge.yolo.YoloPrediction;
 import com.sentinelmesh.edge.yolo.YoloPreprocessor;
-import com.sentinelmesh.edge.yolo.YoloRawOutput;
+import com.sentinelmesh.edge.yolo.v1.YoloV1Model;
+import com.sentinelmesh.edge.yolo.v1.YoloV1Output;
+import com.sentinelmesh.edge.yolo.v1.YoloV1OutputDecoder;
+import com.sentinelmesh.edge.yolo.v1.YoloV1RawOutput;
 
 public class PersonDetector implements Detector
 {
 	private final YoloPreprocessor preprocessor;
-	private final YoloModel model;
-	private final YoloOutputDecoder decoder;
+	private final YoloV1Model model;
+	private final YoloV1OutputDecoder decoder;
 	private final YoloPostProcessor postProcessor;
 	private final YoloDetectionResultMapper mapper;
 
 	public PersonDetector(
 			YoloPreprocessor preprocessor,
-			YoloModel model,
-			YoloOutputDecoder decoder,
+			YoloV1Model model,
+			YoloV1OutputDecoder decoder,
 			YoloPostProcessor postProcessor,
 			YoloDetectionResultMapper mapper
 			)
@@ -59,9 +59,31 @@ public class PersonDetector implements Detector
 		
 		YoloInput input=preprocessor.preprocess(frame);
 		
-		YoloRawOutput rawOutput=model.forward(input);
+		YoloV1RawOutput rawOutput=model.forward(input);
 		
-		YoloOutput decodedOutput=decoder.decode(rawOutput, input);
+		YoloV1Output decodedOutput=decoder.decode(rawOutput, input);
+		
+		YoloPrediction bestPrediction = null;
+
+		for(YoloPrediction prediction : decodedOutput.getAllPredictions())
+		{
+		    if(bestPrediction == null || prediction.getScore() > bestPrediction.getScore())
+		        bestPrediction = prediction;
+		}
+
+		if(bestPrediction != null)
+		{
+		    System.out.println(
+		            "Best YOLO prediction: "
+		            + "objectness=" + bestPrediction.getObjectness()
+		            + ", classProbability=" + bestPrediction.getClassProbability()
+		            + ", score=" + bestPrediction.getScore()
+		            + ", box=(" + bestPrediction.getX()
+		            + ", " + bestPrediction.getY()
+		            + ", " + bestPrediction.getWidth()
+		            + ", " + bestPrediction.getHeight() + ")"
+		    );
+		}
 		
 		List<YoloPrediction> predictions=postProcessor.process(decodedOutput);
 		
