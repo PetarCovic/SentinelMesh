@@ -8,8 +8,12 @@ import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.camera.FrameSource;
 import com.sentinelmesh.edge.camera.VideoFileFrameSource;
 import com.sentinelmesh.edge.camera.WebcamFrameSource;
+import com.sentinelmesh.edge.client.LiveFrameUploadClient;
+import com.sentinelmesh.edge.client.RecordingSegmentUploadClient;
 import com.sentinelmesh.edge.client.SecurityEventClient;
 import com.sentinelmesh.edge.client.SentinelMeshApiClient;
+import com.sentinelmesh.edge.client.SnapshotUploadClient;
+import com.sentinelmesh.edge.client.VideoClipUploadClient;
 import com.sentinelmesh.edge.config.ConfigLoader;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
 import com.sentinelmesh.edge.debug.FrameDebugViewer;
@@ -18,10 +22,15 @@ import com.sentinelmesh.edge.detection.Detector;
 import com.sentinelmesh.edge.detection.MotionDetector;
 import com.sentinelmesh.edge.detection.PersonDetectionWorker;
 import com.sentinelmesh.edge.detection.PersonDetector;
+import com.sentinelmesh.edge.live.LiveFramePublisher;
+import com.sentinelmesh.edge.media.FrameRingBuffer;
+import com.sentinelmesh.edge.media.SnapshotEncoder;
+import com.sentinelmesh.edge.media.VideoClipEncoder;
 import com.sentinelmesh.edge.processing.DetectionCooldownTracker;
 import com.sentinelmesh.edge.processing.FrameProcessingLoop;
 import com.sentinelmesh.edge.processing.FrameProcessor;
 import com.sentinelmesh.edge.processing.HeartbeatLoop;
+import com.sentinelmesh.edge.recording.ContinuousRecordingSubsystem;
 import com.sentinelmesh.edge.util.ShutdownHook;
 import com.sentinelmesh.edge.yolo.YoloDetectionResultMapper;
 import com.sentinelmesh.edge.yolo.YoloPostProcessor;
@@ -46,6 +55,15 @@ public class CvEdgeNodeApplication
 	private FrameDebugViewer debugViewer;
 	private ShutdownHook shutdownHook;
 	private FrameProcessor frameProcessor;
+	private SnapshotEncoder snapshotEncoder;
+	private SnapshotUploadClient snapshotUploadClient;
+	private FrameRingBuffer frameRingBuffer;
+	private VideoClipEncoder videoClipEncoder;
+	private VideoClipUploadClient videoClipUploadClient;
+	private ContinuousRecordingSubsystem recordingSubsystem;
+	private LiveFrameUploadClient liveFrameUploadClient;
+	private LiveFramePublisher liveFramePublisher;
+	
 	private volatile boolean shuttingDown=false;
 	
 	public static void main(String[] args)
@@ -99,6 +117,17 @@ public class CvEdgeNodeApplication
 		cooldownTracker=new DetectionCooldownTracker(config.getDetectionCooldownSeconds());
 		securityEventClient=new SecurityEventClient(apiClient);
 		
+		snapshotEncoder=new SnapshotEncoder();
+		snapshotUploadClient=new SnapshotUploadClient(apiClient);
+		
+		int eventClipFps=config.getEventClipFPS();
+		int eventClipBufferSeconds=config.getEventClipBufferSeconds();
+		int maxClipFrames = eventClipFps * eventClipBufferSeconds;
+
+		frameRingBuffer = new FrameRingBuffer(maxClipFrames);
+		videoClipEncoder = new VideoClipEncoder(eventClipFps);
+		videoClipUploadClient = new VideoClipUploadClient(apiClient);
+		
 		if(config.isDebugViewerEnabled())
 			debugViewer=new FrameDebugViewer("SentinelMesh Motion Debug Viewer");
 		
@@ -115,6 +144,8 @@ public class CvEdgeNodeApplication
 					+ "Edge node will use async person detection only.");
 		
 		detectionPipeline=new DetectionPipeline(detectors);
+		
+		
 				
 		try
 		{
@@ -259,6 +290,20 @@ public class CvEdgeNodeApplication
 		if(securityEventClient==null)
 			throw new IllegalArgumentException("SecurityEventClient cannot be null");
 		
+		if(snapshotEncoder==null)
+		    throw new IllegalArgumentException("SnapshotEncoder cannot be null");
+
+		if(snapshotUploadClient==null)
+		    throw new IllegalArgumentException("SnapshotUploadClient cannot be null");
+
+		if(frameRingBuffer==null)
+		    throw new IllegalArgumentException("FrameRingBuffer cannot be null");
+
+		if(videoClipEncoder==null)
+		    throw new IllegalArgumentException("VideoClipEncoder cannot be null");
+
+		if(videoClipUploadClient==null)
+		    throw new IllegalArgumentException("VideoClipUploadClient cannot be null");
 		
 		frameProcessor=new FrameProcessor(
 				detectionPipeline, 
@@ -266,9 +311,38 @@ public class CvEdgeNodeApplication
 				config, 
 				cooldownTracker, 
 				securityEventClient, 
-				debugViewer);
+				debugViewer,
+				snapshotEncoder,
+				snapshotUploadClient,
+				frameRingBuffer,
+				videoClipEncoder,
+				videoClipUploadClient
+				);
 		
-		processingLoop=new FrameProcessingLoop(fs, frameProcessor, config);
+		RecordingSegmentUploadClient recordingUploadClient=
+				new RecordingSegmentUploadClient(apiClient);
+		
+		recordingSubsystem=new ContinuousRecordingSubsystem(config, recordingUploadClient);
+		
+		liveFrameUploadClient=new LiveFrameUploadClient(apiClient);
+		
+		liveFramePublisher=new LiveFramePublisher(
+				liveFrameUploadClient,
+				snapshotEncoder,
+				config.getDeviceId(),
+				config.getApiKey(),
+				config.getLivePreviewFPS());
+		
+		liveFramePublisher.start();
+		
+		processingLoop=new FrameProcessingLoop(
+				fs, 
+				frameProcessor, 
+				config, 
+				recordingSubsystem,
+				liveFramePublisher
+				);
+		recordingSubsystem.start();
 		processingLoop.start();
 	}
 	
@@ -289,15 +363,31 @@ public class CvEdgeNodeApplication
 	
 	public void shutdown()
 	{	
-		if(shuttingDown)
-			return;
-		
-		shuttingDown=true;
+		synchronized(this)
+		{
+			if(shuttingDown)
+				return;
+			
+			shuttingDown=true;
+		}
 		
 		if(processingLoop!=null)
 		{
 			processingLoop.stop();
+			processingLoop.awaitTermination();
 			processingLoop=null;
+		}
+		
+		if(recordingSubsystem!=null)
+		{
+			recordingSubsystem.close();
+			recordingSubsystem=null;
+		}
+		
+		if(liveFramePublisher!=null)
+		{
+			liveFramePublisher.close();
+			liveFramePublisher=null;
 		}
 		
 		if(frameProcessor != null)
@@ -349,6 +439,24 @@ public class CvEdgeNodeApplication
 		
 		if(apiClient!=null)
 			apiClient=null;
+		
+		if(snapshotEncoder!=null)
+			snapshotEncoder=null;
+		
+		if(snapshotUploadClient!=null)
+			snapshotUploadClient=null;
+		
+		if(frameRingBuffer!=null)
+		{
+			frameRingBuffer.close();
+			frameRingBuffer=null;
+		}
+		
+		if(videoClipEncoder!=null)
+			videoClipEncoder=null;
+		
+		if(videoClipUploadClient!=null)
+			videoClipUploadClient=null;
 		
 		if(fs!=null)
 		{

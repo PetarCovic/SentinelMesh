@@ -38,17 +38,22 @@ export interface Device
     updatedAt: string;
 }
 
-export interface SecurityEvent
-{
-    id: string;
-    deviceId: string;
-    deviceName: string;
-    eventType: SecurityEventType;
-    severity: SecurityEventSeverity;
-    confidence: number | null;
-    occurredAt: string;
-    receivedAt: string;
-    metadataJson: string | null;
+export interface SecurityEvent {
+  id: string;
+  deviceId: string;
+  snapshotId: string | null;
+  videoClipId: string | null;
+  deviceName: string;
+  eventType: string;
+  severity: string;
+  confidence: number | null;
+  occurredAt: string;
+  receivedAt: string;
+  metadataJson: string | null;
+  snapshotImageUrl: string | null;
+  videoClipUrl: string | null;
+  snapshotAvailable: boolean;
+  videoClipAvailable: boolean;
 }
 
 export interface Alert

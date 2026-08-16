@@ -21,12 +21,42 @@ spring:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
 
+  servlet:
+    multipart:
+      max-file-size: 128MB
+      max-request-size: 128MB
+
 sentinelmesh:
   event-processing:
     enabled: true
     queue-name: sentinelmesh:event-processing
     worker-fixed-delay-ms: 1000
     max-attempts: 3
+
+  snapshots:
+    storage-root: /app/storage/snapshots
+    max-file-size-bytes: 5242880
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+
+  clips:
+    storage-root: /app/storage/clips
+    max-file-size-bytes: 52428800
+    allowed-content-types:
+      - video/mp4
+    default-duration-seconds: 15
+    default-width: 0
+    default-height: 0
+
+  recordings:
+    storage-root: /app/storage/recordings
+    max-file-size-bytes: 104857600
+    allowed-content-types:
+      - video/mp4
+    default-duration-seconds: 15
+    default-width: 0
+    default-height: 0
 
 management:
   endpoints:

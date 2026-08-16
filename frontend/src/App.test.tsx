@@ -25,6 +25,18 @@ import type {
 } from "./types";
 
 vi.mock("./api/sentinelMeshApi", () => ({
+  buildApiUrl: vi.fn((path: string | null | undefined) => {
+    if (!path) {
+      return null;
+    }
+
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return path;
+    }
+
+    return `http://localhost:8080${path}`;
+  }),
+
   getDevices: vi.fn(),
   getRecentEvents: vi.fn(),
   getRecentAlerts: vi.fn(),
@@ -116,6 +128,8 @@ const events: SecurityEvent[] = [
   {
     id: "event-1",
     deviceId: "device-1",
+    snapshotId: null,
+    videoClipId: null,
     deviceName: "Front Door Camera",
     eventType: "PERSON_DETECTED",
     severity: "HIGH",
@@ -123,10 +137,16 @@ const events: SecurityEvent[] = [
     occurredAt: "2026-05-27T20:05:00Z",
     receivedAt: "2026-05-27T20:05:01Z",
     metadataJson: null,
+    snapshotImageUrl: null,
+    videoClipUrl: null,
+    snapshotAvailable: false,
+    videoClipAvailable: false,
   },
   {
     id: "event-2",
     deviceId: "device-2",
+    snapshotId: null,
+    videoClipId: null,
     deviceName: "Garage Camera",
     eventType: "MOTION_DETECTED",
     severity: "MEDIUM",
@@ -134,6 +154,10 @@ const events: SecurityEvent[] = [
     occurredAt: "2026-05-27T20:06:00Z",
     receivedAt: "2026-05-27T20:06:01Z",
     metadataJson: null,
+    snapshotImageUrl: null,
+    videoClipUrl: null,
+    snapshotAvailable: false,
+    videoClipAvailable: false,
   },
 ];
 

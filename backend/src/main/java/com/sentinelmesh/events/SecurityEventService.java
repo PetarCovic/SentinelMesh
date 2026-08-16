@@ -12,12 +12,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sentinelmesh.async.EventProcessingQueue;
+import com.sentinelmesh.clips.VideoClip;
+import com.sentinelmesh.clips.VideoClipRepository;
 import com.sentinelmesh.common.PageResponse;
 import com.sentinelmesh.devices.Device;
 import com.sentinelmesh.devices.DeviceAuthenticationService;
 import com.sentinelmesh.exceptions.SecurityEventNotFoundException;
 import com.sentinelmesh.realtime.DashboardEventBroadcaster;
 import com.sentinelmesh.realtime.DashboardEventType;
+import com.sentinelmesh.snapshots.Snapshot;
+import com.sentinelmesh.snapshots.SnapshotRepository;
 
 @Service
 public class SecurityEventService 
@@ -26,18 +30,24 @@ public class SecurityEventService
 	private final DeviceAuthenticationService deviceAuthenticationService;
 	private final EventProcessingQueue eventProcessingQueue;
 	private final DashboardEventBroadcaster dashboardEventBroadcaster;
+	private final SnapshotRepository snapshotRepository;
+	private final VideoClipRepository videoClipRepository;
 	
 	public SecurityEventService(
 			SecurityEventRepository securityEventRepository,
 			DeviceAuthenticationService deviceAuthenticationService,
 			EventProcessingQueue eventProcessingQueue,
-			DashboardEventBroadcaster dashboardEventBroadcaster
+			DashboardEventBroadcaster dashboardEventBroadcaster,
+			SnapshotRepository snapshotRepository,
+			VideoClipRepository videoClipRepository
 			)
 	{
 		this.securityEventRepository=securityEventRepository;
 		this.deviceAuthenticationService=deviceAuthenticationService;
 		this.eventProcessingQueue=eventProcessingQueue;
 		this.dashboardEventBroadcaster=dashboardEventBroadcaster;
+		this.snapshotRepository=snapshotRepository;
+		this.videoClipRepository=videoClipRepository;
 	}
 	
 	@Transactional
@@ -86,7 +96,7 @@ public class SecurityEventService
 		return securityEventRepository
 				.findAll()
 				.stream()
-				.map(SecurityEventResponse::from).toList();
+				.map(this::toResponse).toList();
 	}
 	
 	@Transactional(readOnly=true)
@@ -96,7 +106,7 @@ public class SecurityEventService
 				.findById(id)
 				.orElseThrow(() -> new SecurityEventNotFoundException(id));
 		
-		return SecurityEventResponse.from(event);
+		return toResponse(event);
 	}
 	
 	@Transactional(readOnly=true)
@@ -104,7 +114,7 @@ public class SecurityEventService
 	{
 		return securityEventRepository.findByDeviceId(deviceId)
 				.stream()
-				.map(SecurityEventResponse::from)
+				.map(this::toResponse)
 				.toList();
 	}
 	
@@ -117,8 +127,16 @@ public class SecurityEventService
 
 	    Page<SecurityEventResponse> responsePage = securityEventRepository
 	            .findAllByOrderByReceivedAtDesc(pageable)
-	            .map(SecurityEventResponse::from);
+	            .map(this::toResponse);
 
 	    return PageResponse.from(responsePage);
+	}
+	
+	private SecurityEventResponse toResponse(SecurityEvent event)
+	{
+		Snapshot snapshot=snapshotRepository.findByEventId(event.getId()).orElse(null);
+		VideoClip videoClip=videoClipRepository.findByEventId(event.getId()).orElse(null);
+		
+		return SecurityEventResponse.from(event, snapshot, videoClip);
 	}
 }

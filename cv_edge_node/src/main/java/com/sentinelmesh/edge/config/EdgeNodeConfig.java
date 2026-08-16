@@ -1,5 +1,7 @@
 package com.sentinelmesh.edge.config;
 
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.UUID;
 
 import com.sentinelmesh.edge.devices.DeviceType;
@@ -27,6 +29,24 @@ public class EdgeNodeConfig
 	private final boolean enableMotionDetection;
 	private final boolean enablePersonDetection;
 	private final boolean enableDebugViewer;
+	private final boolean enableDetectionBoxes;
+	private final boolean enableContinuousRecording;
+	private final boolean enableRetainUploadedRecordings;
+	private final int eventClipFPS;
+	private final int eventClipBufferSeconds;
+	private final long recordingSegmentDurationSeconds;
+	private final int recordingSegmentFPS;
+	private final Path recordingSpoolRoot;
+	private final int recordingMaximumUploadAttempts;
+	private final long recordingMaximumSpoolSizeBytes;
+	private final long recordingMinimumFreeDiskSpaceBytes;
+	private final int recordingWidth;
+	private final int recordingHeight;
+	private final boolean deletePendingWhenNecessary;
+	private final Duration recordingUploadInterval;
+	private final Duration uploadedRecordingRetentionDuration;
+	private final Duration uploadedRecordingCleanupInterval;
+	private final int livePreviewFPS;
 	
 	public EdgeNodeConfig(
 			String backendBaseUrl,
@@ -48,7 +68,25 @@ public class EdgeNodeConfig
 			int heartbeatIntervalSeconds,
 			boolean enableMotionDetection,
 			boolean enablePersonDetection,
-			boolean enableDebugViewer
+			boolean enableDebugViewer,
+			boolean enableDetectionBoxes,
+			boolean enableContinuousRecording,
+			boolean enableRetainUploadedRecordings,
+			int eventClipFPS,
+			int eventClipBufferSeconds,
+			long recordingSegmentDurationSeconds,
+			int recordingSegmentFPS,
+			Path recordingSpoolRoot,
+			int recordingMaximumUploadAttempts,
+			long recordingMaximumSpoolSizeBytes,
+			long recordingMinimumFreeDiskSpaceBytes,
+			int recordingWidth,
+			int recordingHeight,
+			boolean deletePendingWhenNecessary,
+			Duration recordingUploadInterval,
+			Duration uploadedRecordingRetentionDuration,
+			Duration uploadedRecordingCleanupInterval,
+			int livePreviewFPS
 			)
 	{
 		if(backendBaseUrl==null || backendBaseUrl.isBlank())
@@ -93,6 +131,62 @@ public class EdgeNodeConfig
 		if(heartbeatIntervalSeconds<=0)
 			throw new IllegalArgumentException("Heartbeat interval seconds must be greater than 0");
 		
+		if(eventClipFPS<=0)
+			throw new IllegalArgumentException("EventClipFPS must be greater than 0");
+		
+		if(eventClipBufferSeconds<=0)
+			throw new IllegalArgumentException("EventClipBufferSeconds must be greater than 0");
+		
+		if(recordingSegmentDurationSeconds<=0)
+			throw new IllegalArgumentException("RecordingSegmentDurationSeconds must be greater than 0");
+		
+		if(recordingSegmentFPS<=0)
+			throw new IllegalArgumentException("RecordingSegmentFPS must be greater than 0");
+	
+		if(recordingSpoolRoot==null || recordingSpoolRoot.toString().isBlank())
+			throw new IllegalArgumentException("RecordingSpoolRoot cannot be null or empty");
+		
+		if(recordingMaximumUploadAttempts<=0)
+			throw new IllegalArgumentException("RecordingMaximumUploadAttempts must be greater "
+					+ "than 0");
+		
+		if(recordingMaximumSpoolSizeBytes<=0)
+			throw new IllegalArgumentException("RecordingMaximumSpoolSizeBytes must be greater "
+					+ "than 0");
+		
+		if(recordingMinimumFreeDiskSpaceBytes<0)
+			throw new IllegalArgumentException("RecordingMinimumFreeDiskSpaceBytes cannot be "
+					+ "negative");
+		
+		if(recordingWidth<=0)
+			throw new IllegalArgumentException("RecordingWidth must be greater than 0");
+		
+		if(recordingHeight<=0)
+			throw new IllegalArgumentException("RecordingHeight must be greater than 0");
+		
+		if(recordingUploadInterval==null)
+			throw new IllegalArgumentException("RecordingUploadInterval cannot be null");
+		
+		if(uploadedRecordingRetentionDuration==null)
+			throw new IllegalArgumentException("UploadedRecordingRetentionDuration cannot be null");
+		
+		if(uploadedRecordingCleanupInterval==null)
+			throw new IllegalArgumentException("UploadedRecordingCleanupInterval cannot be null");
+		
+		if(!recordingUploadInterval.isPositive())
+			throw new IllegalArgumentException("RecordingUploadInterval must be positive");
+		
+		if(recordingUploadInterval.compareTo(Duration.ofSeconds(1)) < 0)
+			throw new IllegalArgumentException("RecordingUploadInterval must be at least 1 second");
+		
+		if(uploadedRecordingRetentionDuration.isNegative())
+			throw new IllegalArgumentException("UploadedRecordingRetentionDuration cannot be negative");
+		
+		if(uploadedRecordingCleanupInterval.compareTo(Duration.ofSeconds(1)) < 0)
+			throw new IllegalArgumentException("UploadedRecordingCleanupInterval must be at least 1 second");
+		
+		if(livePreviewFPS<=0)
+			throw new IllegalArgumentException("LivePreviewFPS must be greater than 0");
 		
 		this.backendBaseUrl=backendBaseUrl;	
 		this.deviceId=deviceId;
@@ -114,6 +208,24 @@ public class EdgeNodeConfig
 		this.enableMotionDetection=enableMotionDetection;
 		this.enablePersonDetection=enablePersonDetection;
 		this.enableDebugViewer=enableDebugViewer;
+		this.enableContinuousRecording=enableContinuousRecording;
+		this.enableDetectionBoxes=enableDetectionBoxes;
+		this.enableRetainUploadedRecordings=enableRetainUploadedRecordings;
+		this.eventClipFPS=eventClipFPS;
+		this.eventClipBufferSeconds=eventClipBufferSeconds;
+		this.recordingSegmentDurationSeconds=recordingSegmentDurationSeconds;
+		this.recordingSegmentFPS=recordingSegmentFPS;
+		this.recordingSpoolRoot=recordingSpoolRoot;
+		this.recordingMaximumUploadAttempts=recordingMaximumUploadAttempts;
+		this.recordingMaximumSpoolSizeBytes=recordingMaximumSpoolSizeBytes;
+		this.recordingMinimumFreeDiskSpaceBytes=recordingMinimumFreeDiskSpaceBytes;
+		this.recordingWidth=recordingWidth;
+		this.recordingHeight=recordingHeight;
+		this.deletePendingWhenNecessary=deletePendingWhenNecessary;
+		this.recordingUploadInterval=recordingUploadInterval;
+		this.uploadedRecordingRetentionDuration=uploadedRecordingRetentionDuration;
+		this.uploadedRecordingCleanupInterval=uploadedRecordingCleanupInterval;
+		this.livePreviewFPS=livePreviewFPS;
 	}
 	
 	public String getBackendBaseUrl()
@@ -222,8 +334,98 @@ public class EdgeNodeConfig
 		return enableDebugViewer;
 	}
 	
+	public boolean isDetectionBoxesEnabled()
+	{
+		return enableDetectionBoxes;
+	}
+	
+	public boolean isContinuousRecordingEnabled()
+	{
+		return enableContinuousRecording;
+	}
+	
+	public boolean isRetainUploadedRecordingsEnabled() 
+	{
+		return enableRetainUploadedRecordings;
+	}
+	
 	public boolean hasVideoFilePath()
 	{
 		return videoFilePath!=null && !videoFilePath.isBlank();
+	}
+	
+	public int getEventClipFPS()
+	{
+		return eventClipFPS;
+	}
+	
+	public int getEventClipBufferSeconds()
+	{
+		return eventClipBufferSeconds;
+	}
+	
+	public long getRecordingSegmentDurationSeconds()
+	{
+		return recordingSegmentDurationSeconds;
+	}
+	
+	public int getRecordingSegmentFPS()
+	{
+		return recordingSegmentFPS;
+	}
+	
+	public Path getRecordingSpoolRoot()
+	{
+		return recordingSpoolRoot;
+	}
+
+	public int getRecordingMaximumUploadAttempts()
+	{
+		return recordingMaximumUploadAttempts;
+	}
+
+	public long getRecordingMaximumSpoolSizeBytes() 
+	{
+		return recordingMaximumSpoolSizeBytes;
+	}
+
+	public long getRecordingMinimumFreeDiskSpaceBytes() 
+	{
+		return recordingMinimumFreeDiskSpaceBytes;
+	}
+	
+	public int getRecordingWidth()
+	{
+		return recordingWidth;
+	}
+
+	public int getRecordingHeight()
+	{
+		return recordingHeight;
+	}
+
+	public boolean isDeletePendingWhenNecessary()
+	{
+		return deletePendingWhenNecessary;
+	}
+
+	public Duration getRecordingUploadInterval()
+	{
+		return recordingUploadInterval;
+	}
+	
+	public Duration getUploadedRecordingRetentionDuration()
+	{
+		return uploadedRecordingRetentionDuration;
+	}
+	
+	public Duration getUploadedRecordingCleanupInterval()
+	{
+		return uploadedRecordingCleanupInterval;
+	}
+	
+	public int getLivePreviewFPS()
+	{
+		return livePreviewFPS;
 	}
 }

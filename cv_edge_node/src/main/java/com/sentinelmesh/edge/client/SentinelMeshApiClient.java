@@ -1,16 +1,17 @@
 package com.sentinelmesh.edge.client;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sentinelmesh.edge.util.JsonUtils;
 
 public class SentinelMeshApiClient 
@@ -247,5 +248,160 @@ public class SentinelMeshApiClient
 		String url=baseUrl+newPath;
 		
 		return url;
+	}
+	
+	public String postMultipartFile(
+	        String path,
+	        String apiKey,
+	        String fieldName,
+	        String filename,
+	        String contentType,
+	        byte[] fileBytes
+	)
+	{
+	    return postMultipartFile(path, apiKey, fieldName, filename, contentType, fileBytes, Map.of());
+	}
+	
+	public String postMultipartFile(
+	        String path,
+	        String apiKey,
+	        String fieldName,
+	        String filename,
+	        String contentType,
+	        byte[] fileBytes,
+	        Map<String, String> formFields
+	        )
+	{
+		if(path == null || path.isBlank())
+	        throw new IllegalArgumentException("Path cannot be null or blank");
+
+	    if(apiKey == null || apiKey.isBlank())
+	        throw new IllegalArgumentException("ApiKey cannot be null or blank");
+
+	    if(fieldName == null || fieldName.isBlank())
+	        throw new IllegalArgumentException("FieldName cannot be null or blank");
+
+	    if(filename == null || filename.isBlank())
+	        throw new IllegalArgumentException("Filename cannot be null or blank");
+
+	    if(contentType == null || contentType.isBlank())
+	        throw new IllegalArgumentException("ContentType cannot be null or blank");
+
+	    if(fileBytes == null || fileBytes.length == 0)
+	        throw new IllegalArgumentException("File bytes cannot be null or empty");
+	    
+	    if(formFields==null)
+	    	formFields=Map.of();
+	    
+	    String boundary = "----SentinelMeshBoundary" + UUID.randomUUID();
+	    
+	    try {
+	        byte[] multipartBody = buildMultipartFileBody(
+	                boundary,
+	                fieldName,
+	                filename,
+	                contentType,
+	                fileBytes,
+	                formFields
+	        );
+	        
+	        HttpRequest request = buildRequest(path, apiKey)
+	                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+	                .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+	                .build();
+
+	        HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
+
+	        int statusCode = response.statusCode();
+
+	        if(statusCode < 200 || statusCode >= 300) {
+	            throw new IllegalStateException(
+	                    "Multipart POST request failed. Path: " + path +
+	                    ", status: " + statusCode +
+	                    ", body: " + response.body()
+	            );
+	        }
+
+	        return response.body();
+	    }catch (IOException ex) {
+	        throw new IllegalStateException("Multipart POST request failed for path: " + path, ex);
+	    } catch (InterruptedException ex) {
+	        Thread.currentThread().interrupt();
+	        throw new IllegalStateException("Multipart POST request interrupted for path: " + path, ex);
+	    }
+	}
+	
+	private byte[] buildMultipartFileBody(
+	        String boundary,
+	        String fieldName,
+	        String filename,
+	        String contentType,
+	        byte[] fileBytes
+	) throws IOException
+	{
+	    return buildMultipartFileBody(
+	    		boundary, 
+	    		fieldName,
+	    		filename,
+	    		contentType,
+	    		fileBytes,
+	    		Map.of()
+	    		);
+	}
+	
+	private byte[] buildMultipartFileBody(
+	        String boundary,
+	        String fieldName,
+	        String filename,
+	        String contentType,
+	        byte[] fileBytes,
+	        Map<String, String> formFields
+	) throws IOException
+	{
+	    String lineBreak = "\r\n";
+
+	    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+	    outputStream.write(("--" + boundary + lineBreak).getBytes(StandardCharsets.UTF_8));
+	    outputStream.write((
+	            "Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + filename + "\"" + lineBreak
+	    ).getBytes(StandardCharsets.UTF_8));
+	    outputStream.write(("Content-Type: " + contentType + lineBreak).getBytes(StandardCharsets.UTF_8));
+	    outputStream.write(lineBreak.getBytes(StandardCharsets.UTF_8));
+
+	    outputStream.write(fileBytes);
+	    outputStream.write(lineBreak.getBytes(StandardCharsets.UTF_8));
+	    
+	    for(Map.Entry<String, String> entry : formFields.entrySet())
+	    {
+	    	if(entry.getKey() == null || entry.getKey().isBlank())
+	    	    throw new IllegalArgumentException("Form field name cannot be null or blank");
+
+	    	if(entry.getValue() == null)
+	    	    throw new IllegalArgumentException("Form field value cannot be null");
+	    	
+	    	outputStream.write(("--" + boundary + lineBreak)
+	    	        .getBytes(StandardCharsets.UTF_8));
+
+	    	outputStream.write((
+	    	        "Content-Disposition: form-data; name=\""
+	    	        + entry.getKey()
+	    	        + "\""
+	    	        + lineBreak
+	    	).getBytes(StandardCharsets.UTF_8));
+
+	    	outputStream.write(lineBreak.getBytes(StandardCharsets.UTF_8));
+
+	    	outputStream.write(
+	    	        entry.getValue().getBytes(StandardCharsets.UTF_8)
+	    	);
+
+	    	outputStream.write(lineBreak.getBytes(StandardCharsets.UTF_8));
+	    }
+	    
+	    outputStream.write(("--" + boundary + "--" + lineBreak).getBytes(StandardCharsets.UTF_8));
+
+	    
+	    return outputStream.toByteArray();
 	}
 }

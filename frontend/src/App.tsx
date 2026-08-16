@@ -30,6 +30,8 @@ import type {
   SecurityEvent,
 } from "./types";
 import "./App.css";
+import EventSnapshotThumbnail from "./components/EventSnapshotThumbnail";
+import EventVideoClipButton from "./components/EventVideoClipButton";
 
 const PAGE_SIZE = 50;
 
@@ -807,6 +809,8 @@ function App() {
                 <table>
                   <thead>
                     <tr>
+                      <th>Snapshot</th>
+                      <th>Video</th>
                       <th>Type</th>
                       <th>Severity</th>
                       <th>Device</th>
@@ -817,11 +821,27 @@ function App() {
                   <tbody>
                     {filteredEvents.length === 0 ? (
                       <tr>
-                        <td colSpan={5}>No events match the current filters.</td>
+                        <td colSpan={7}>No events match the current filters.</td>
                       </tr>
                     ) : (
                       filteredEvents.map((event) => (
                         <tr key={event.id}>
+                          <td>
+                            <EventSnapshotThumbnail
+                              snapshotImageUrl={event.snapshotImageUrl}
+                              eventType={event.eventType}
+                              deviceName={event.deviceName}
+                            />
+                          </td>
+
+                          <td>
+                            <EventVideoClipButton
+                              videoClipAvailable={event.videoClipAvailable}
+                              videoClipUrl={event.videoClipUrl}
+                              eventType={event.eventType}
+                              deviceName={event.deviceName}
+                            />
+                          </td>
                           <td>{event.eventType}</td>
                           <td>
                             <Badge value={event.severity} />

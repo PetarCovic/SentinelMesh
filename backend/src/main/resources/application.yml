@@ -16,11 +16,16 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        format_sql: true	
+        format_sql: true
   data:
     redis:
       host: localhost
       port: 6379
+
+  servlet:
+    multipart:
+      max-file-size: 128MB
+      max-request-size: 128MB
 
 management:
   endpoints:
@@ -31,7 +36,31 @@ management:
     health:
       show-details: always
 
+sentinelmesh:
+  snapshots:
+    storage-root: storage/snapshots
+    max-file-size-bytes: 5242880
+    allowed-content-types:
+      - image/jpeg
+      - image/png
 
+  clips:
+    storage-root: storage/clips
+    max-file-size-bytes: 52428800
+    allowed-content-types:
+      - video/mp4
+    default-duration-seconds: 15
+    default-width: 0
+    default-height: 0
+
+  recordings:
+    storage-root: storage/recordings
+    max-file-size-bytes: 104857600
+    allowed-content-types:
+      - video/mp4
+    default-duration-seconds: 15
+    default-width: 0
+    default-height: 0
 
 app:
   version: 0.1.0

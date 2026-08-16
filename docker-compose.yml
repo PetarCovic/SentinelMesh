@@ -35,6 +35,7 @@ services:
       dockerfile: Dockerfile
     container_name: sentinelmesh-backend
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       POSTGRES_DB: ${POSTGRES_DB:-sentinelmesh_dev}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -42,6 +43,8 @@ services:
       REDIS_PORT: 6379
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./backend/storage:/app/storage
     depends_on:
       postgres:
         condition: service_healthy

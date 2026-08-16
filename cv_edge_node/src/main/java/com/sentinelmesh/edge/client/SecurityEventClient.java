@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinelmesh.edge.detection.DetectionResult;
 import com.sentinelmesh.edge.detection.DetectionType;
 import com.sentinelmesh.edge.dto.SecurityEventRequest;
+import com.sentinelmesh.edge.dto.SecurityEventResponse;
 import com.sentinelmesh.edge.events.SecurityEventSeverity;
 import com.sentinelmesh.edge.events.SecurityEventType;
 
@@ -25,7 +26,7 @@ public class SecurityEventClient
 		this.objectMapper=new ObjectMapper();
 	}
 	
-	public String sendEvent(UUID deviceId, String apiKey, DetectionResult detection)
+	public UUID sendEvent(UUID deviceId, String apiKey, DetectionResult detection)
 	{
 		if(deviceId == null)
 			throw new IllegalArgumentException("DeviceId cannot be null");
@@ -46,7 +47,18 @@ public class SecurityEventClient
 				buildMetadataJson(deviceId, detection)
 		);
 		
-		return apiClient.post(path, request, apiKey);
+		String responseJson=apiClient.post(path, request, apiKey);
+		
+		SecurityEventResponse response;
+		response = apiClient.parseResponse(responseJson, SecurityEventResponse.class);
+		
+		if(response==null)
+		    throw new IllegalStateException("Security event response was empty");
+
+		if(response.getId()==null)
+		    throw new IllegalStateException("Security event response did not include an id");
+		
+		return response.getId();
 	}
 	
 	private SecurityEventType mapEventType(DetectionType detectionType)
@@ -98,17 +110,5 @@ public class SecurityEventClient
 		{
 			throw new IllegalStateException("Failed to build metadata JSON", ex);
 		}
-	}
-	
-	private String escapeJson(String value)
-	{
-		if(value == null)
-			return "";
-		
-		return value
-				.replace("\\", "\\\\")
-				.replace("\"", "\\\"")
-				.replace("\n", "\\n")
-				.replace("\r", "\\r");
 	}
 }

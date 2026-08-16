@@ -5,6 +5,7 @@ application-local.properties
 
 backend/storage/
 backend/target/
+cv_edge_node/recording-spool/
 frontend/node_modules/
 frontend/dist/
 simulator/target/
