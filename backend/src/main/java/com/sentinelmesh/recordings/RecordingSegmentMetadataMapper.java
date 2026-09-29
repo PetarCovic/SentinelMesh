@@ -22,7 +22,7 @@ public class RecordingSegmentMetadataMapper
 				recordingSegment.getDurationSeconds(),
 				recordingSegment.getWidth(),
 				recordingSegment.getHeight(),
-				"/api/recordings/segments/"+recordingSegment.getId()+"/video",
+				"/api/recordings/segments/"+recordingSegment.getSegmentId()+"/video",
 				recordingSegment.getSegmentStartTime(),
 				recordingSegment.getSegmentEndTime(),
 				recordingSegment.getCreatedAt()

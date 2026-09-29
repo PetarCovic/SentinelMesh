@@ -96,10 +96,14 @@ public class FrameProcessingLoop
 	{
 		Frame frame=new Frame();
 		
+		System.out.println("START TEST");
+		
 		try
 		{
 			while(running)
 			{
+				long frameStartNanos = System.nanoTime();
+				
 				boolean read=fs.read(frame);
 				
 				if(!read)
@@ -108,9 +112,13 @@ public class FrameProcessingLoop
 					break;
 				}
 				
+				System.out.println("READ TEST");
+				
 				try
 				{
 					recordingSubsystem.acceptFrame(frame);
+					
+					System.out.println("RS ACCEPT TEST");
 				}
 				catch(Exception ex)
 				{
@@ -120,6 +128,8 @@ public class FrameProcessingLoop
 				try
 				{
 					liveFramePublisher.acceptFrame(frame);
+					
+					System.out.println("LFP ACCEPT TEST");
 				}
 				catch(Exception ex)
 				{
@@ -129,12 +139,16 @@ public class FrameProcessingLoop
 				try
 				{
 					frameProcessor.process(frame);
+					
+					System.out.println("PROCESS TEST");
 				}catch(Exception ex)
 				{
 					System.err.println("Frame Processing failed: "+ex.getMessage());
 				}
 				
-				sleepForTargetFps();
+				sleepForTargetFps(frameStartNanos);
+				
+				System.out.println("SLEEP TEST");
 			}
 		}
 		finally
@@ -143,19 +157,36 @@ public class FrameProcessingLoop
 		}
 	}
 	
-	private void sleepForTargetFps()
+	private void sleepForTargetFps(long frameStartNanos)
 	{
-	    int fps = config.getTargetFps();
-	    long msPerFrame = 1000L / fps;
-
-	    try
-	    {
-	        Thread.sleep(msPerFrame);
-	    }
-	    catch(InterruptedException ex)
-	    {
-	    	// stop() interrupts the processing thread so it exits sleep immediately.
-	        running = false;
-	    }
+		int fps = config.getTargetFps();
+		
+		long targetFrameDurationNanos =
+				1_000_000_000L / fps;
+		
+		long elapsedNanos =
+				System.nanoTime() - frameStartNanos;
+		
+		long remainingNanos =
+				targetFrameDurationNanos - elapsedNanos;
+		
+		if(remainingNanos <= 0)
+			return;
+		
+		long sleepMillis =
+				remainingNanos / 1_000_000L;
+		
+		int sleepNanos =
+				(int)(remainingNanos % 1_000_000L);
+		
+		try
+		{
+			Thread.sleep(sleepMillis, sleepNanos);
+		}
+		catch(InterruptedException ex)
+		{
+			running = false;
+			Thread.currentThread().interrupt();
+		}
 	}
 }

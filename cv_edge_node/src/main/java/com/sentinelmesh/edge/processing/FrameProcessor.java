@@ -109,6 +109,7 @@ public class FrameProcessor
 		try
 		{
 		    frameRingBuffer.add(frame);
+		    System.out.println("FRP ADD");
 		}
 		catch(Exception ex)
 		{
@@ -119,6 +120,8 @@ public class FrameProcessor
 		
 		List<DetectionResult> synchronousDetections = detectionPipeline.detect(frame);
 		detections.addAll(synchronousDetections);
+		
+		System.out.println("DETECTIONS ADD");
 		
 		if(config.isPersonDetectionEnabled() 
 				&& personDetectionWorker!=null
@@ -131,10 +134,13 @@ public class FrameProcessor
 		}
 		
 		List<DetectionResult> personDetections = List.of();
+		
+		System.out.println("PERSON DETECTIONS OF");
 		boolean personConfirmed = false;
 		
 		if(config.isPersonDetectionEnabled() && personDetectionWorker != null)
 		{
+			System.out.println("IF PERSONS ENTERED");
 			personDetections=personDetectionWorker.getLatestResults();
 			
 			long currentVersion=personDetectionWorker.getLatestResultVersion();
@@ -148,6 +154,7 @@ public class FrameProcessor
 			personConfirmed = latestPersonConfirmed;
 
 			detections.addAll(personDetections);
+			System.out.println("DETECTIONS ADD ALL");
 		}
 		
 		if(debugViewer != null && debugViewer.isOpen())
@@ -155,6 +162,8 @@ public class FrameProcessor
 		
 		if(detections.isEmpty())
 			return;
+		
+		System.out.println("DETECTIONS EMPTY");
 		
 		long currentPersonResultVersion = personDetectionWorker != null
 				? personDetectionWorker.getLatestResultVersion()
@@ -166,6 +175,7 @@ public class FrameProcessor
 			
 			if(personDetection)
 			{
+				System.out.println("PERSON DETECTION ENTERED");
 				if(!personConfirmed)
 					continue;
 				
@@ -178,18 +188,27 @@ public class FrameProcessor
 			
 			if(cooldownTracker.shouldAllow(detection))
 			{
+				System.out.println("COOLDOWN TRACKER ENTERED");
 				Frame frameCopy=null;
 
 				try
 				{
+					System.out.println("CD 1");
+					
 					frameCopy=frame.copy();
+					
+					System.out.println("CD 2");
 					
 					UUID eventId=securityEventClient.sendEvent(
 							config.getDeviceId(), 
 							config.getApiKey(), 
 							detection
 							);
+					
+					System.out.println("CD 3");
 					cooldownTracker.markSent(detection);
+					
+					System.out.println("COOLDOWN TRACKER SENT");
 					
 					try
 					{
@@ -202,6 +221,8 @@ public class FrameProcessor
 								encodedFrame
 								);
 						
+						System.out.println("SNAPSHOT UPLOADED");
+						
 					}
 					catch(Exception ex)
 					{
@@ -210,6 +231,8 @@ public class FrameProcessor
 					}
 					
 					List<Frame> clipFrames = List.of();
+					
+					System.out.println("CLIP FRAMES OF");
 
 					try
 					{
@@ -223,6 +246,8 @@ public class FrameProcessor
 					            config.getApiKey(),
 					            encodedVideo
 					            );
+					    
+					    System.out.println("CLIPS UPLOADED");
 					}
 					catch(Exception ex)
 					{
@@ -236,6 +261,8 @@ public class FrameProcessor
 					        if(clipFrame != null)
 					            clipFrame.close();
 					    }
+					    
+					    System.out.println("FINALLY 1");
 					}
 				}
 				catch(Exception ex)
@@ -249,6 +276,8 @@ public class FrameProcessor
 					
 					if(frameCopy!=null)
 						frameCopy.close();
+					
+					System.out.println("FINALLY 2");
 				}
 			}
 		}

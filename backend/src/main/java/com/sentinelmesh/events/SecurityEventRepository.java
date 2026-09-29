@@ -16,6 +16,8 @@ public interface SecurityEventRepository extends JpaRepository<SecurityEvent, UU
 	
 	List<SecurityEvent> findByDeviceId(UUID deviceId);
 	
+	List<SecurityEvent> findTop5ByDeviceIdOrderByReceivedAtDesc(UUID deviceId);
+	
 	List<SecurityEvent> findByEventType(SecurityEventType eventType);
 	
 	List<SecurityEvent> findBySeverity(SecurityEventSeverity severity);

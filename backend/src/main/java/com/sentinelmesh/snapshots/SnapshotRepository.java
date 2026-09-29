@@ -1,5 +1,6 @@
 package com.sentinelmesh.snapshots;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,4 +14,6 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, UUID>
 	boolean existsByEventId(UUID eventId);
 	
 	List<Snapshot> findByDeviceIdOrderByCreatedAtDesc(UUID deviceId);
+	
+	List<Snapshot> findByEventIdIn(Collection<UUID> eventIds);
 }

@@ -76,16 +76,20 @@ public class RecordingSegmentController
 	}
 	
 	@GetMapping(value="/devices/{deviceId}/recordings/segments")
-	public ResponseEntity<List<RecordingSegmentResponse>> getTimeline(
+	public ResponseEntity<CameraRecordingTimelineResponse> getTimeline(
 			@PathVariable UUID deviceId,
 			@RequestParam("start") Instant start,
-			@RequestParam("end") Instant end
+			@RequestParam("end") Instant end,
+			@RequestParam(name="page", required=false, defaultValue="0") int page,
+			@RequestParam(name="size", required=false, defaultValue="25") int size
 			)
 	{
-		return ResponseEntity.ok(recordingSegmentService.getSegmentsForDeviceBetween(
-				deviceId,
-				start,
-				end
+		return ResponseEntity.ok(recordingSegmentService.getCameraRecordingTimeline(
+				deviceId, 
+				start, 
+				end, 
+				page, 
+				size
 				));
 	}
 }

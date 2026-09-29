@@ -1,5 +1,6 @@
 package com.sentinelmesh.clips;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,4 +14,6 @@ public interface VideoClipRepository extends JpaRepository<VideoClip, UUID>
 	boolean existsByEventId(UUID eventId);
 	
 	List<VideoClip> findByDeviceIdOrderByCreatedAtDesc(UUID deviceId);
+	
+	List<VideoClip> findByEventIdIn(Collection<UUID> eventIds);
 }

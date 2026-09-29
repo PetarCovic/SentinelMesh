@@ -37,7 +37,11 @@ public class SecurityEventClient
 		if(detection == null)
 			throw new IllegalArgumentException("DetectionResult cannot be null");
 		
+		System.out.println("VAL");
+		
 		String path = "/api/devices/" + deviceId + "/events";
+		
+		System.out.println("PATH");
 		
 		SecurityEventRequest request = new SecurityEventRequest(
 				mapEventType(detection.getType()),
@@ -47,10 +51,16 @@ public class SecurityEventClient
 				buildMetadataJson(deviceId, detection)
 		);
 		
+		System.out.println("REQUEST");
+		
 		String responseJson=apiClient.post(path, request, apiKey);
+		
+		System.out.println("JSON");
 		
 		SecurityEventResponse response;
 		response = apiClient.parseResponse(responseJson, SecurityEventResponse.class);
+		
+		System.out.println("RESPONSE");
 		
 		if(response==null)
 		    throw new IllegalStateException("Security event response was empty");

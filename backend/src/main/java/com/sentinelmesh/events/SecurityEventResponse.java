@@ -1,6 +1,7 @@
 package com.sentinelmesh.events;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.sentinelmesh.clips.VideoClip;
@@ -156,6 +157,16 @@ public class SecurityEventResponse
 				true,
 				true
 				);
+	}
+	
+	public static List<SecurityEventResponse> from(List<SecurityEvent> events)
+	{
+		if(events==null)
+			throw new IllegalArgumentException("Events cannot be null");
+		
+		return events.stream()
+				.map(SecurityEventResponse::from)
+				.toList();
 	}
 	
 	public UUID getId()
