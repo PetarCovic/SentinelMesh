@@ -1,0 +1,10 @@
+title = "SentinelMesh secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "sentinelmesh-device-api-key"
+description = "SentinelMesh production device API key"
+regex = '''sm_live_[A-Za-z0-9_-]{43}'''
+keywords = ["sm_live_"]
