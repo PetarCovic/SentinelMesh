@@ -85,3 +85,8 @@ npm run build
 - Edge recording spool files are stored under the ignored `cv_edge_node/recording-spool/` directory.
 
 See [docs/database-environments.md](docs/database-environments.md) for database and Redis profile details.
+
+## License
+
+SentinelMesh is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Commercial uses not permitted by that license require separate written permission from Petar Covic.
