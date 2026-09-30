@@ -96,8 +96,6 @@ public class FrameProcessingLoop
 	{
 		Frame frame=new Frame();
 		
-		System.out.println("START TEST");
-		
 		try
 		{
 			while(running)
@@ -112,13 +110,9 @@ public class FrameProcessingLoop
 					break;
 				}
 				
-				System.out.println("READ TEST");
-				
 				try
 				{
 					recordingSubsystem.acceptFrame(frame);
-					
-					System.out.println("RS ACCEPT TEST");
 				}
 				catch(Exception ex)
 				{
@@ -128,8 +122,6 @@ public class FrameProcessingLoop
 				try
 				{
 					liveFramePublisher.acceptFrame(frame);
-					
-					System.out.println("LFP ACCEPT TEST");
 				}
 				catch(Exception ex)
 				{
@@ -139,16 +131,12 @@ public class FrameProcessingLoop
 				try
 				{
 					frameProcessor.process(frame);
-					
-					System.out.println("PROCESS TEST");
 				}catch(Exception ex)
 				{
 					System.err.println("Frame Processing failed: "+ex.getMessage());
 				}
 				
 				sleepForTargetFps(frameStartNanos);
-				
-				System.out.println("SLEEP TEST");
 			}
 		}
 		finally

@@ -318,20 +318,13 @@ public class CvEdgeNodeApplication
 				videoClipEncoder,
 				videoClipUploadClient
 				);
-		System.out.println("FP TEST");
 		
 		RecordingSegmentUploadClient recordingUploadClient=
 				new RecordingSegmentUploadClient(apiClient);
 		
-		System.out.println("RSUC TEST");
-		
 		recordingSubsystem=new ContinuousRecordingSubsystem(config, recordingUploadClient);
 		
-		System.out.println("RS TEST");
-		
 		liveFrameUploadClient=new LiveFrameUploadClient(apiClient);
-		
-		System.out.println("LFUC TEST");
 
 		
 		liveFramePublisher=new LiveFramePublisher(
@@ -341,11 +334,7 @@ public class CvEdgeNodeApplication
 				config.getApiKey(),
 				config.getLivePreviewFPS());
 		
-		System.out.println("LFPC TEST");
-		
 		liveFramePublisher.start();
-		
-		System.out.println("LFPS TEST");
 		
 		processingLoop=new FrameProcessingLoop(
 				fs, 
@@ -354,16 +343,10 @@ public class CvEdgeNodeApplication
 				recordingSubsystem,
 				liveFramePublisher
 				);
-		
-		System.out.println("PL TEST");
 
 		recordingSubsystem.start();
-		
-		System.out.println("RSS TEST");
 
 		processingLoop.start();
-		
-		System.out.println("PLS TEST");
 	}
 	
 	private void sleepForWarmupFrame()

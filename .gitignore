@@ -1,16 +1,29 @@
 .env
 *.env
+.env.*
+*.env.*
+!.env.example
 application-local.yml
 application-local.properties
 
-backend/storage/
-backend/target/
-cv_edge_node/recording-spool/
-frontend/node_modules/
-frontend/dist/
-simulator/target/
-benchmarks/target/
-edge/target/
+/backend/storage/
+/backend/target/
+
+/cv_edge_node/recording-spool/
+/cv_edge_node/bin/
+
+/frontend/node_modules/
+/frontend/dist/
+
+/simulator/target/
+/simulator/bin/
+
+/benchmarks/target/
+/benchmarks/bin/
+
+/backend/Run.txt
+/backend/TODO.txt
+/cv_edge_node/TODO.txt
 
 # IDE / OS
 .DS_Store
@@ -36,12 +49,17 @@ training/**/*.pt
 training/**/*.pth
 training/**/*.onnx
 
-# Model artifacts
-edge/models/**/*.weights
-edge/models/**/*.ckpt
-edge/models/**/*.pt
-edge/models/**/*.pth
-edge/models/**/*.onnx
+# Edge model artifacts
+cv_edge_node/models/**/*.weights
+cv_edge_node/models/**/*.ckpt
+cv_edge_node/models/**/*.pt
+cv_edge_node/models/**/*.pth
+cv_edge_node/models/**/*.onnx
 
-# Keep model config files
-!edge/models/yolo-v1/*.json
+# Keep the model used by the default edge configuration
+!cv_edge_node/models/yolo-v1/yolo-v1-person.weights
+
+# Python cache
+__pycache__/
+*.pyc
+/cv_edge_node/target/

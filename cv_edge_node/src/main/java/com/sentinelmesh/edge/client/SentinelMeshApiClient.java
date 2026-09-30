@@ -67,18 +67,12 @@ public class SentinelMeshApiClient
 		try {
 			jsonBody=jsonUtils.toJson(body);
 			
-			System.out.println("TO JSON");
-			
 			HttpRequest request=buildRequest(path)
 					.header("Content-Type", "application/json")
 					.POST(HttpRequest.BodyPublishers.ofString(jsonBody))
 					.build();
 			
-			System.out.println("HTTP REQUEST");
-			
 			HttpResponse<String> response=httpClient.send(request, BodyHandlers.ofString());
-			
-			System.out.println("HTTP RESPONSE");
 			
 			int statusCode=response.statusCode();
 			
@@ -88,8 +82,6 @@ public class SentinelMeshApiClient
 	                    ", status: " + statusCode +
 	                    ", body: " + response.body()
 	            );
-			
-			System.out.println("STATUS");
 			
 			return response.body();
 		} catch (JsonProcessingException ex) 
@@ -114,18 +106,12 @@ public class SentinelMeshApiClient
 		try {
 			jsonBody=jsonUtils.toJson(body);
 			
-			System.out.println("TO JSON");
-			
 			HttpRequest request=buildRequest(path, apiKey)
 					.header("Content-Type", "application/json")
 					.POST(HttpRequest.BodyPublishers.ofString(jsonBody))
 					.build();
 			
-			System.out.println("HTTP REQUEST");
-			
 			HttpResponse<String> response=httpClient.send(request, BodyHandlers.ofString());
-			
-			System.out.println("HTTP RESPONSE");
 			
 			int statusCode=response.statusCode();
 			
@@ -135,8 +121,6 @@ public class SentinelMeshApiClient
 	                    ", status: " + statusCode +
 	                    ", body: " + response.body()
 	            );
-			
-			System.out.println("STATUS");
 			
 			return response.body();
 		} catch (JsonProcessingException ex) 

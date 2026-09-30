@@ -13,8 +13,10 @@ public class ConfigLoader
 	//TODO Maybe make configuration file
 	private static final String SENTINEL_BACKEND_BASE_URL="http://[::1]:8080";
 	private static final UUID SENTINEL_DEVICE_ID=UUID.fromString("9f5c15be-45b1-4687-957b-4ea5493465b7");
-	private static final String SENTINEL_DEVICE_API_KEY=
-			"sm_redacted_rotated";
+	private static final String SENTINEL_DEVICE_API_KEY =
+	        java.util.Objects.requireNonNull(
+	                System.getenv("SENTINEL_DEVICE_API_KEY"),
+	                "SENTINEL_DEVICE_API_KEY must be set");
 	private static final String SENTINEL_DEVICE_NAME="Local Webcam";
 	private static final DeviceType SENTINEL_DEVICE_TYPE=DeviceType.CAMERA;
 	private static final String SENTINEL_DEVICE_LOCATION="Unknown";

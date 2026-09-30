@@ -55,7 +55,7 @@ class SecurityEventControllerTest {
     void setUp() {
         testDatabaseCleaner.clean();
     
-        rawApiKey = "sm_redacted_rotated";
+        rawApiKey = "sm_test_primary_camera_key";
     }
 
     @Test
@@ -344,7 +344,7 @@ class SecurityEventControllerTest {
         Device device2 = createSavedDeviceWithApiKey(
                 "Garage Camera",
                 "Garage",
-                "sm_redacted_rotated"
+                "sm_test_garage_camera_key"
         );
 
         securityEventRepository.save(new SecurityEvent(
