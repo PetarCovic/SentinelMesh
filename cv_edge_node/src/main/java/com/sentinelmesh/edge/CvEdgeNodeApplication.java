@@ -23,6 +23,7 @@ import com.sentinelmesh.edge.detection.MotionDetector;
 import com.sentinelmesh.edge.detection.PersonDetectionWorker;
 import com.sentinelmesh.edge.detection.PersonDetector;
 import com.sentinelmesh.edge.live.LiveFramePublisher;
+import com.sentinelmesh.edge.media.FrameAnnotationRenderer;
 import com.sentinelmesh.edge.media.FrameRingBuffer;
 import com.sentinelmesh.edge.media.SnapshotEncoder;
 import com.sentinelmesh.edge.media.VideoClipEncoder;
@@ -63,63 +64,64 @@ public class CvEdgeNodeApplication
 	private ContinuousRecordingSubsystem recordingSubsystem;
 	private LiveFrameUploadClient liveFrameUploadClient;
 	private LiveFramePublisher liveFramePublisher;
-	
+	private FrameAnnotationRenderer frameAnnotationRenderer;
+
 	private volatile boolean shuttingDown=false;
-	
+
 	public static void main(String[] args)
 	{
 		CvEdgeNodeApplication app=new CvEdgeNodeApplication();
-		
+
 		app.run();
 	}
-	
+
 	public void run()
 	{
 		config=new ConfigLoader().load();
-		
+
 		if(config==null)
 			throw new IllegalStateException("EdgeNodeConfig cannot be null");
-		
+
 		fs=createFrameSource(config);
 		boolean startupSuccess=startupFrameSource();
-		
+
 		if(!startupSuccess)
 		{
 			shutdown();
 			return;
 		}
-		
+
 		if(config.isMotionDetectionEnabled())
 			motionDetector=new MotionDetector(
-					config.getMotionThreshold(), 
+					config.getMotionThreshold(),
 					config.getMinimumContourArea());
-		
+
 		if(config.isPersonDetectionEnabled())
 		{
 			personDetector=createPersonDetector();
 			personDetectionWorker=new PersonDetectionWorker(personDetector);
 		}
-		
+
 		boolean warmupSuccess=warmupMotionDetector(5);
-		
+
 		if(!warmupSuccess)
 		{
 			shutdown();
 			return;
 		}
-		
+
 		shutdownHook=new ShutdownHook("cv-edge-node-shutdown", ()->shutdown());
 		shutdownHook.register();
-		
+
 		apiClient=new SentinelMeshApiClient(config.getBackendBaseUrl());
 		startHeartbeatLoop(apiClient, config);
-		
+
 		cooldownTracker=new DetectionCooldownTracker(config.getDetectionCooldownSeconds());
 		securityEventClient=new SecurityEventClient(apiClient);
-		
+
 		snapshotEncoder=new SnapshotEncoder();
 		snapshotUploadClient=new SnapshotUploadClient(apiClient);
-		
+
 		int eventClipFps=config.getEventClipFPS();
 		int eventClipBufferSeconds=config.getEventClipBufferSeconds();
 		int maxClipFrames = eventClipFps * eventClipBufferSeconds;
@@ -127,26 +129,26 @@ public class CvEdgeNodeApplication
 		frameRingBuffer = new FrameRingBuffer(maxClipFrames);
 		videoClipEncoder = new VideoClipEncoder(eventClipFps);
 		videoClipUploadClient = new VideoClipUploadClient(apiClient);
-		
+
 		if(config.isDebugViewerEnabled())
 			debugViewer=new FrameDebugViewer("SentinelMesh Motion Debug Viewer");
-		
+
 		List<Detector> detectors=new ArrayList<>();
-		
+
 		if(config.isMotionDetectionEnabled())
 			detectors.add(motionDetector);
-		
+
 		if(detectors.isEmpty() && !config.isPersonDetectionEnabled())
 			System.out.println("No detection features enabled. "
 					+ "Edge node will run without detections");
 		else if(detectors.isEmpty())
 			System.out.println("No synchronous detectors enabled. "
 					+ "Edge node will use async person detection only.");
-		
+
 		detectionPipeline=new DetectionPipeline(detectors);
-		
-		
-				
+
+
+
 		try
 		{
 			startProcessingLoop();
@@ -156,34 +158,34 @@ public class CvEdgeNodeApplication
 			shutdown();
 		}
 	}
-	
+
 	private boolean startupFrameSource()
 	{
 		if(fs==null)
 			throw new IllegalArgumentException("Frame Source cannot be null");
-		
+
 		System.out.println("Opening frame source: "+fs.getSourceName());
 
 		boolean open=fs.open();
-			
+
 		if(!open)
 		{
 			System.out.println("Could not open frame source: "+fs.getSourceName());
 			return false;
 		}
-		
+
 		Frame frame=new Frame();
-		
+
 		try
 		{
 			boolean success=fs.read(frame);
-			
+
 			if(!success || frame.isEmpty())
 			{
 				System.out.println("Error capturing frame");
 				return false;
 			}
-			
+
 			System.out.println("Captured frame successfully.");
 			System.out.println("Frame ID: "+frame.getFrameId());
 			System.out.println("Timestamp: "+frame.getTimestamp());
@@ -194,76 +196,76 @@ public class CvEdgeNodeApplication
 		{
 	        frame.close();
 		}
-        
+
         return true;
 	}
-	
+
 	private FrameSource createFrameSource(EdgeNodeConfig config)
-	{		
+	{
 		if(config==null)
 			throw new IllegalArgumentException("Config can not be null");
-		
+
 		if(config.hasVideoFilePath())
 			return new VideoFileFrameSource(config.getVideoFilePath());
 		else
 			return new WebcamFrameSource(config.getCameraIndex());
 	}
-	
+
 	private void startHeartbeatLoop(SentinelMeshApiClient apiClient, EdgeNodeConfig config)
 	{
 		if(apiClient==null)
 			throw new IllegalArgumentException("SentinelMeshApiClient cannot be null");
-		
+
 		if(config==null)
 			throw new IllegalArgumentException("EdgeNodeConfig cannot be null");
-		
+
 		this.heartbeatLoop=new HeartbeatLoop(apiClient, config);
-		
+
 		heartbeatLoop.start();
 	}
-	
+
 	private boolean warmupMotionDetector(int frameCount)
 	{
 		if(!config.isMotionDetectionEnabled())
 			return true;
-		
+
 		if(fs == null)
 			throw new IllegalArgumentException("Frame source cannot be null");
-		
+
 		if(motionDetector == null)
 			throw new IllegalArgumentException("Motion detector cannot be null");
-		
+
 		if(frameCount <= 0)
 			throw new IllegalArgumentException("Frame count must be greater than 0");
-		
+
 		Frame frame = new Frame();
-		
+
 		try
 		{
 			int warmedUpFrames = 0;
-			
+
 			while(warmedUpFrames < frameCount)
 			{
 				boolean success = fs.read(frame);
-				
+
 				if(!success || frame.isEmpty())
 				{
 					System.out.println("Failed to read calibration frame");
 					return false;
 				}
-				
+
 				motionDetector.warmup(frame);
 				warmedUpFrames++;
-				
+
 				sleepForWarmupFrame();
-				
+
 				if(Thread.currentThread().isInterrupted())
 				{
 					System.out.println("Motion detector warmup interrupted");
 					return false;
 				}
 			}
-			
+
 			System.out.println("Motion detector warmed up with " + warmedUpFrames + " frames.");
 			return true;
 		}
@@ -272,24 +274,24 @@ public class CvEdgeNodeApplication
 			frame.close();
 		}
 	}
-	
+
 	private void startProcessingLoop()
 	{
 		if(fs==null)
 			throw new IllegalArgumentException("Frame source cannot be null");
-		
+
 		if(detectionPipeline==null)
 			throw new IllegalArgumentException("DetectionPipeline cannot be null");
-		
+
 		if(config==null)
 			throw new IllegalArgumentException("EdgeNodeConfig cannot be null");
-		
+
 		if(cooldownTracker==null)
 			throw new IllegalArgumentException("CooldownTracker cannot be null");
-		
+
 		if(securityEventClient==null)
 			throw new IllegalArgumentException("SecurityEventClient cannot be null");
-		
+
 		if(snapshotEncoder==null)
 		    throw new IllegalArgumentException("SnapshotEncoder cannot be null");
 
@@ -304,13 +306,13 @@ public class CvEdgeNodeApplication
 
 		if(videoClipUploadClient==null)
 		    throw new IllegalArgumentException("VideoClipUploadClient cannot be null");
-		
+
 		frameProcessor=new FrameProcessor(
-				detectionPipeline, 
+				detectionPipeline,
 				personDetectionWorker,
-				config, 
-				cooldownTracker, 
-				securityEventClient, 
+				config,
+				cooldownTracker,
+				securityEventClient,
 				debugViewer,
 				snapshotEncoder,
 				snapshotUploadClient,
@@ -318,29 +320,32 @@ public class CvEdgeNodeApplication
 				videoClipEncoder,
 				videoClipUploadClient
 				);
-		
+
 		RecordingSegmentUploadClient recordingUploadClient=
 				new RecordingSegmentUploadClient(apiClient);
-		
+
 		recordingSubsystem=new ContinuousRecordingSubsystem(config, recordingUploadClient);
-		
+
 		liveFrameUploadClient=new LiveFrameUploadClient(apiClient);
 
-		
+
 		liveFramePublisher=new LiveFramePublisher(
 				liveFrameUploadClient,
 				snapshotEncoder,
 				config.getDeviceId(),
 				config.getApiKey(),
 				config.getLivePreviewFPS());
-		
+
 		liveFramePublisher.start();
-		
+
+		frameAnnotationRenderer=new FrameAnnotationRenderer();
+
 		processingLoop=new FrameProcessingLoop(
-				fs, 
-				frameProcessor, 
-				config, 
+				fs,
+				frameProcessor,
+				config,
 				recordingSubsystem,
+				frameAnnotationRenderer,
 				liveFramePublisher
 				);
 
@@ -348,12 +353,12 @@ public class CvEdgeNodeApplication
 
 		processingLoop.start();
 	}
-	
+
 	private void sleepForWarmupFrame()
 	{
 		int fps = config.getTargetFps();
 		long msPerFrame = 1000 / fps;
-		
+
 		try
 		{
 			Thread.sleep(msPerFrame);
@@ -363,71 +368,71 @@ public class CvEdgeNodeApplication
 			Thread.currentThread().interrupt();
 		}
 	}
-	
+
 	public void shutdown()
-	{	
+	{
 		synchronized(this)
 		{
 			if(shuttingDown)
 				return;
-			
+
 			shuttingDown=true;
 		}
-		
+
 		if(processingLoop!=null)
 		{
 			processingLoop.stop();
 			processingLoop.awaitTermination();
 			processingLoop=null;
 		}
-		
+
 		if(recordingSubsystem!=null)
 		{
 			recordingSubsystem.close();
 			recordingSubsystem=null;
 		}
-		
+
 		if(liveFramePublisher!=null)
 		{
 			liveFramePublisher.close();
 			liveFramePublisher=null;
 		}
-		
+
 		if(frameProcessor != null)
 		    frameProcessor = null;
 
 		if(detectionPipeline != null)
 		    detectionPipeline = null;
-		
+
 		if(debugViewer!=null)
 		{
 			debugViewer.close();
 			debugViewer=null;
 		}
-		
+
 		if(cooldownTracker!=null)
 		{
 			cooldownTracker.reset();
 			cooldownTracker=null;
 		}
-		
+
 		if(heartbeatLoop!=null)
-		{	
+		{
 			heartbeatLoop.stop();
 			heartbeatLoop=null;
 		}
-		
+
 		if(securityEventClient!=null)
 		{
 			securityEventClient=null;
 		}
-		
+
 		if(motionDetector!=null)
 		{
 			motionDetector.close();
 			motionDetector=null;
 		}
-		
+
 		if(personDetectionWorker != null)
 		{
 			personDetectionWorker.close();
@@ -439,37 +444,37 @@ public class CvEdgeNodeApplication
 			personDetector.close();
 			personDetector = null;
 		}
-		
+
 		if(apiClient!=null)
 			apiClient=null;
-		
+
 		if(snapshotEncoder!=null)
 			snapshotEncoder=null;
-		
+
 		if(snapshotUploadClient!=null)
 			snapshotUploadClient=null;
-		
+
 		if(frameRingBuffer!=null)
 		{
 			frameRingBuffer.close();
 			frameRingBuffer=null;
 		}
-		
+
 		if(videoClipEncoder!=null)
 			videoClipEncoder=null;
-		
+
 		if(videoClipUploadClient!=null)
 			videoClipUploadClient=null;
-		
+
 		if(fs!=null)
 		{
 			fs.close();
 			fs=null;
 		}
-		
+
 		shutdownHook=null;
 	}
-	
+
 	private PersonDetector createPersonDetector()
 	{
 		YoloV1Model model;
@@ -491,12 +496,12 @@ public class CvEdgeNodeApplication
 		        break;
 
 		    default:
-		        throw new IllegalStateException("Unsupported YOLO model mode: " 
+		        throw new IllegalStateException("Unsupported YOLO model mode: "
 		    + config.getYoloModelMode());
 		}
-		
+
 		System.out.println("Creating person detector with YOLO mode: " + config.getYoloModelMode());
-		
+
 		return new PersonDetector(
 		        new YoloPreprocessor(),
 		        model,

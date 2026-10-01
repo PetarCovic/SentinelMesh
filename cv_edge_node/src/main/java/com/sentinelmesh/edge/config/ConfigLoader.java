@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 import com.sentinelmesh.edge.devices.DeviceType;
 import com.sentinelmesh.edge.yolo.YoloModelMode;
 
-public class ConfigLoader 
+public class ConfigLoader
 {
 	//TODO Maybe make configuration file
 	private static final String SENTINEL_BACKEND_BASE_URL="http://[::1]:8080";
@@ -37,6 +37,7 @@ public class ConfigLoader
 	private static final boolean SENTINEL_ENABLE_DETECTION_BOXES=true;
 	private static final boolean SENTINEL_ENABLE_CONTINUOUS_RECORDING=true;
 	private static final boolean SENTINEL_ENABLE_RETAIN_UPLOADED_RECORDINGS=true;
+	private static final boolean SENTINEL_ENABLE_LIVE_DETECTION_OVERLAY=true;
 	private static final int SENTINEL_EVENT_CLIP_FPS=10;
 	private static final int SENTINEL_EVENT_CLIP_BUFFER_SECONDS=10;
 	private static final int SENTINEL_RECORDING_SEGMENT_DURATION_SECONDS=60;
@@ -52,17 +53,17 @@ public class ConfigLoader
 	private static final Duration SENTINEL_UPLOADED_RECORDING_RETENTION_DURATION=Duration.ofMinutes(1);//Duration.ofDays(1);
 	private static final Duration SENTINEL_UPLOADED_RECORDING_CLEANUP_INTERVAL=Duration.ofSeconds(10);//Duration.ofHours(1);
 	private static final int SENTINEL_LIVE_PREVIEW_FPS=10;
-	
+
 	public EdgeNodeConfig load()
 	{
 		return loadDefault();
 	}
-	
+
 	public EdgeNodeConfig loadDefault()
 	{
 		return new EdgeNodeConfig(
-				SENTINEL_BACKEND_BASE_URL.trim(), 
-				SENTINEL_DEVICE_ID, 
+				SENTINEL_BACKEND_BASE_URL.trim(),
+				SENTINEL_DEVICE_ID,
 				SENTINEL_DEVICE_API_KEY,
 				SENTINEL_DEVICE_NAME,
 				SENTINEL_DEVICE_TYPE,
@@ -84,6 +85,7 @@ public class ConfigLoader
 				SENTINEL_ENABLE_DETECTION_BOXES,
 				SENTINEL_ENABLE_CONTINUOUS_RECORDING,
 				SENTINEL_ENABLE_RETAIN_UPLOADED_RECORDINGS,
+				SENTINEL_ENABLE_LIVE_DETECTION_OVERLAY,
 				SENTINEL_EVENT_CLIP_FPS,
 				SENTINEL_EVENT_CLIP_BUFFER_SECONDS,
 				SENTINEL_RECORDING_SEGMENT_DURATION_SECONDS,
