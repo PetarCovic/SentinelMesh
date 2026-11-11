@@ -6,7 +6,7 @@ SentinelMesh supports a full Docker Compose run and a hybrid development run.
 
 - Docker Desktop with Docker Compose
 - Java 21 for backend and edge-node development
-- Node.js and npm for frontend development
+- Node.js 22.13+ (22.x) and npm for frontend development
 - A non-empty local PostgreSQL password
 
 ## Full Docker Compose mode
@@ -53,32 +53,34 @@ The reset script asks for confirmation and permanently removes the Docker-manage
 
 Hybrid mode runs infrastructure in Docker and the backend and frontend from their source directories.
 
-The current `dev` and `benchmark` Spring profiles expect PostgreSQL on `localhost:5432`. The Compose PostgreSQL service is published on host port `5433`, so use a PostgreSQL instance on port `5432` for these profiles, or adjust the datasource port in your local configuration before starting the backend.
+The current `dev` profile expects PostgreSQL on host port `5432`, while Compose publishes it on `5433`. Use the explicit datasource override below when using Compose infrastructure.
 
-Start Redis if PostgreSQL is already available locally:
+From the repository root, stop any containerized backend/frontend first, then start infrastructure:
 
 ```powershell
-docker compose up -d redis
+docker compose stop backend frontend
+docker compose up -d postgres redis
 ```
 
-Set the password in the current PowerShell session:
+Prompt for the password without displaying it, and set the host backend configuration:
 
 ```powershell
-$env:POSTGRES_PASSWORD = "your-local-postgres-password"
-```
-
-Start the backend from `backend/`:
-
-```powershell
+$credential = [pscredential]::new("postgres", (Read-Host "PostgreSQL password" -AsSecureString))
+$env:POSTGRES_PASSWORD = $credential.GetNetworkCredential().Password
+Remove-Variable credential
+$env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5433/sentinelmesh_dev"
+$env:SPRING_DATASOURCE_USERNAME = "postgres"
 Set-Location backend
-.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
+
+Use your configured database/role if they differ from the defaults. Docker Compose reads the root `.env`; the host backend does not load it automatically. Stop the backend with `Ctrl+C`.
 
 In another terminal, start the frontend:
 
 ```powershell
 Set-Location frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -89,12 +91,16 @@ The frontend runs at <http://localhost:5173> and the backend at <http://localhos
 Run all backend and frontend checks from the repository root:
 
 ```powershell
-scripts\test-all.bat
+$env:SPRING_PROFILES_ACTIVE = "test"
+Remove-Item Env:SPRING_DATASOURCE_URL, Env:SPRING_DATASOURCE_USERNAME, Env:SPRING_DATASOURCE_PASSWORD -ErrorAction SilentlyContinue
+.\scripts\test-all.bat
 ```
 
 Run only backend tests:
 
 ```powershell
+$env:SPRING_PROFILES_ACTIVE = "test"
+Remove-Item Env:SPRING_DATASOURCE_URL, Env:SPRING_DATASOURCE_USERNAME, Env:SPRING_DATASOURCE_PASSWORD -ErrorAction SilentlyContinue
 Set-Location backend
 .\mvnw.cmd clean test
 ```
@@ -103,6 +109,7 @@ Run frontend tests and the production build:
 
 ```powershell
 Set-Location frontend
+npm ci
 npm run test:run
 npm run build
 ```
@@ -114,8 +121,9 @@ Create a temporary camera device:
 ```powershell
 $body = @{ name = "Local Test Camera"; type = "CAMERA"; location = "Lab" } |
     ConvertTo-Json -Compress
-Invoke-RestMethod "http://localhost:8080/api/devices" -Method Post `
+$camera = Invoke-RestMethod "http://localhost:8080/api/devices" -Method Post `
     -ContentType "application/json" -Body $body
+$camera | Select-Object id, name, status
 ```
 
 The response contains a device API key. Save it only in a local secret store or environment variable if you need to test a heartbeat. Do not commit it.
@@ -132,7 +140,7 @@ Make sure `.env` exists and contains a non-empty `POSTGRES_PASSWORD`:
 
 ```powershell
 Test-Path .env
-Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=.+$'
+Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=.+$' -Quiet
 ```
 
 ### The health URL returns 404
@@ -151,3 +159,7 @@ docker compose logs -f backend
 docker compose logs -f frontend
 docker compose down
 ```
+
+## Related documentation
+
+See the [requirements](requirements.md), [architecture](architecture.md), and [runbook](runbook.md) for acceptance checks, API/data contracts, startup/shutdown, logs, backups, and troubleshooting. The [README](../README.md#build-and-test) includes exact build/test commands for all Java modules.
