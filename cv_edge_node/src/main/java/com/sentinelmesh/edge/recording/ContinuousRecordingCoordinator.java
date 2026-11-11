@@ -1,7 +1,8 @@
 package com.sentinelmesh.edge.recording;
 
-import java.util.Optional;
+import java.util.List;
 
+import com.sentinelmesh.edge.audio.AudioSampleBuffer;
 import com.sentinelmesh.edge.camera.Frame;
 
 public class ContinuousRecordingCoordinator implements AutoCloseable
@@ -33,7 +34,11 @@ public class ContinuousRecordingCoordinator implements AutoCloseable
 		this.closed=false;
 	}
 	
-	public synchronized void acceptFrame(Frame frame)
+	public synchronized void acceptFrame(
+			Frame frame,
+			List<AudioSampleBuffer> audioChunks,
+			boolean audioRunning
+			)
 	{
 		if(frame==null || frame.isEmpty())
 			throw new IllegalArgumentException("Frame cannot be null or empty");
@@ -41,27 +46,19 @@ public class ContinuousRecordingCoordinator implements AutoCloseable
 		if(closed)
 			throw new IllegalStateException("ContinuousRecordingCoordinator is closed");
 		
-		Optional<RecordingSpoolEntry> completedEntry=streamingEncoder.acceptFrame(frame);
-		
-		if(completedEntry.isPresent())
-		{
-			spoolService.moveToPending(completedEntry.get());
-			capacityManager.enforceCapacity();
-		}
+		publishCompleted(streamingEncoder.acceptFrame(
+				frame,
+				audioChunks,
+				audioRunning,
+				capacityManager::enforceCapacity));
 	}
 	
-	public synchronized void finalizeCurrentSegment()
+	public synchronized void finish(List<AudioSampleBuffer> audioChunks)
 	{
 		if(closed)
-			throw new IllegalStateException("ContinuousRecordingCoordinator is closed");
+			return;
 		
-		Optional<RecordingSpoolEntry> finalizedEntry=streamingEncoder.finalizeCurrentSegment();
-		
-		if(finalizedEntry.isPresent())
-		{
-			spoolService.moveToPending(finalizedEntry.get());
-			capacityManager.enforceCapacity();
-		}
+		publishCompleted(streamingEncoder.finishRemainingSegments(audioChunks));
 	}
 	
 	@Override
@@ -72,7 +69,7 @@ public class ContinuousRecordingCoordinator implements AutoCloseable
 
 		try
 		{
-		    finalizeCurrentSegment();
+		    finish(List.of());
 		}
 		finally
 		{
@@ -84,6 +81,16 @@ public class ContinuousRecordingCoordinator implements AutoCloseable
 		    {
 		        closed = true;
 		    }
+		}
+	}
+	
+	private synchronized void publishCompleted(
+			List<RecordingSpoolEntry> entries
+			)
+	{
+		for(RecordingSpoolEntry entry : entries)
+		{
+			spoolService.moveToPending(entry);
 		}
 	}
 }

@@ -3,7 +3,11 @@ package com.sentinelmesh.edge;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import com.sentinelmesh.edge.audio.AudioCaptureWorker;
+import com.sentinelmesh.edge.audio.AudioSampleBuffer;
+import com.sentinelmesh.edge.audio.MicrophoneAudioSource;
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.camera.FrameSource;
 import com.sentinelmesh.edge.camera.VideoFileFrameSource;
@@ -23,8 +27,8 @@ import com.sentinelmesh.edge.detection.MotionDetector;
 import com.sentinelmesh.edge.detection.PersonDetectionWorker;
 import com.sentinelmesh.edge.detection.PersonDetector;
 import com.sentinelmesh.edge.live.LiveFramePublisher;
+import com.sentinelmesh.edge.media.EventClipCoordinator;
 import com.sentinelmesh.edge.media.FrameAnnotationRenderer;
-import com.sentinelmesh.edge.media.FrameRingBuffer;
 import com.sentinelmesh.edge.media.SnapshotEncoder;
 import com.sentinelmesh.edge.media.VideoClipEncoder;
 import com.sentinelmesh.edge.processing.DetectionCooldownTracker;
@@ -58,13 +62,13 @@ public class CvEdgeNodeApplication
 	private FrameProcessor frameProcessor;
 	private SnapshotEncoder snapshotEncoder;
 	private SnapshotUploadClient snapshotUploadClient;
-	private FrameRingBuffer frameRingBuffer;
-	private VideoClipEncoder videoClipEncoder;
-	private VideoClipUploadClient videoClipUploadClient;
+
 	private ContinuousRecordingSubsystem recordingSubsystem;
 	private LiveFrameUploadClient liveFrameUploadClient;
 	private LiveFramePublisher liveFramePublisher;
 	private FrameAnnotationRenderer frameAnnotationRenderer;
+	private AudioCaptureWorker audioCaptureWorker;
+	private EventClipCoordinator eventClipCoordinator;
 
 	private volatile boolean shuttingDown=false;
 
@@ -123,12 +127,6 @@ public class CvEdgeNodeApplication
 		snapshotUploadClient=new SnapshotUploadClient(apiClient);
 
 		int eventClipFps=config.getEventClipFPS();
-		int eventClipBufferSeconds=config.getEventClipBufferSeconds();
-		int maxClipFrames = eventClipFps * eventClipBufferSeconds;
-
-		frameRingBuffer = new FrameRingBuffer(maxClipFrames);
-		videoClipEncoder = new VideoClipEncoder(eventClipFps);
-		videoClipUploadClient = new VideoClipUploadClient(apiClient);
 
 		if(config.isDebugViewerEnabled())
 			debugViewer=new FrameDebugViewer("SentinelMesh Motion Debug Viewer");
@@ -146,8 +144,34 @@ public class CvEdgeNodeApplication
 					+ "Edge node will use async person detection only.");
 
 		detectionPipeline=new DetectionPipeline(detectors);
-
-
+		
+		VideoClipEncoder videoClipEncoder=new VideoClipEncoder(
+				config.getEventClipFPS(), 
+				config.getRecordingAudioGainDb()
+				);
+		
+		VideoClipUploadClient videoClipUploadClient=new VideoClipUploadClient(
+				apiClient
+				);
+		
+		this.eventClipCoordinator=new EventClipCoordinator(
+				config.getEventClipBufferSeconds(),
+	            config.getEventClipPostSeconds(),
+	            config.getTargetFps(),
+	            eventClipFps,
+	            (eventId, frames, audioRanges)->
+					{				
+						System.out.println("Audio ranges for event " + eventId + ": " + audioRanges.size());
+						
+						byte[] encodedBytes=videoClipEncoder.encodeMp4(frames, audioRanges);
+						videoClipUploadClient.uploadVideoClip(
+								config.getDeviceId(),
+								eventId, 
+								config.getApiKey(), 
+								encodedBytes
+								);
+					}
+				);
 
 		try
 		{
@@ -298,15 +322,9 @@ public class CvEdgeNodeApplication
 		if(snapshotUploadClient==null)
 		    throw new IllegalArgumentException("SnapshotUploadClient cannot be null");
 
-		if(frameRingBuffer==null)
-		    throw new IllegalArgumentException("FrameRingBuffer cannot be null");
-
-		if(videoClipEncoder==null)
-		    throw new IllegalArgumentException("VideoClipEncoder cannot be null");
-
-		if(videoClipUploadClient==null)
-		    throw new IllegalArgumentException("VideoClipUploadClient cannot be null");
-
+		if(eventClipCoordinator == null)
+			throw new IllegalArgumentException("EventClipCoordinator cannot be null");
+		
 		frameProcessor=new FrameProcessor(
 				detectionPipeline,
 				personDetectionWorker,
@@ -316,15 +334,16 @@ public class CvEdgeNodeApplication
 				debugViewer,
 				snapshotEncoder,
 				snapshotUploadClient,
-				frameRingBuffer,
-				videoClipEncoder,
-				videoClipUploadClient
+				eventClipCoordinator
 				);
 
 		RecordingSegmentUploadClient recordingUploadClient=
 				new RecordingSegmentUploadClient(apiClient);
 
-		recordingSubsystem=new ContinuousRecordingSubsystem(config, recordingUploadClient);
+		recordingSubsystem=new ContinuousRecordingSubsystem(
+				config, 
+				recordingUploadClient
+				);
 
 		liveFrameUploadClient=new LiveFrameUploadClient(apiClient);
 
@@ -340,16 +359,50 @@ public class CvEdgeNodeApplication
 
 		frameAnnotationRenderer=new FrameAnnotationRenderer();
 
+		recordingSubsystem.start();
+		
+		if(config.isAudioEnabled())
+		{			
+			MicrophoneAudioSource audioSource=new MicrophoneAudioSource(
+					config.getAudioDeviceName(), 
+					config.getAudioSampleRate(), 
+					config.getAudioChannels()
+					);
+			
+			audioCaptureWorker=new AudioCaptureWorker(
+					audioSource,
+					config.getAudioSampleRate(),
+					config.getAudioChannels()
+					);
+			
+			AudioCaptureWorker worker=audioCaptureWorker;
+			worker.start();
+			
+			try
+			{
+			    if (!worker.awaitStartup(2, TimeUnit.SECONDS))
+			        System.out.println("Microphone not ready; continuing with video capture.");
+			}
+			catch (InterruptedException ex)
+			{
+			    Thread.currentThread().interrupt();
+			    return;
+			}
+		}
+		
+		if (shuttingDown)
+		    return;
+		
 		processingLoop=new FrameProcessingLoop(
 				fs,
 				frameProcessor,
 				config,
 				recordingSubsystem,
 				frameAnnotationRenderer,
-				liveFramePublisher
+				liveFramePublisher,
+				audioCaptureWorker,
+				eventClipCoordinator
 				);
-
-		recordingSubsystem.start();
 
 		processingLoop.start();
 	}
@@ -385,10 +438,40 @@ public class CvEdgeNodeApplication
 			processingLoop.awaitTermination();
 			processingLoop=null;
 		}
+		
+		List<AudioSampleBuffer> audioSampleBufferList=List.of();
+		if(audioCaptureWorker!=null)
+		{
+			audioCaptureWorker.close();
+			audioSampleBufferList=audioCaptureWorker.drainAvailable();
+			audioCaptureWorker=null;
+		}
+		
+		if(eventClipCoordinator!=null)
+		{
+			try(EventClipCoordinator clips = eventClipCoordinator)
+			{
+				clips.finish(audioSampleBufferList);
+			}
+			catch(Exception ex)
+			{
+				ex.printStackTrace();
+			}
+			
+			eventClipCoordinator=null;
+		}
 
 		if(recordingSubsystem!=null)
 		{
-			recordingSubsystem.close();
+			try(ContinuousRecordingSubsystem subsystem = recordingSubsystem)
+			{
+				subsystem.finish(audioSampleBufferList);
+			}
+			catch(Exception ex)
+			{
+				ex.printStackTrace();
+			}
+			
 			recordingSubsystem=null;
 		}
 
@@ -453,19 +536,7 @@ public class CvEdgeNodeApplication
 
 		if(snapshotUploadClient!=null)
 			snapshotUploadClient=null;
-
-		if(frameRingBuffer!=null)
-		{
-			frameRingBuffer.close();
-			frameRingBuffer=null;
-		}
-
-		if(videoClipEncoder!=null)
-			videoClipEncoder=null;
-
-		if(videoClipUploadClient!=null)
-			videoClipUploadClient=null;
-
+		
 		if(fs!=null)
 		{
 			fs.close();

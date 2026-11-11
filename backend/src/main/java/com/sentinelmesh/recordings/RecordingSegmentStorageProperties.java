@@ -15,10 +15,12 @@ public class RecordingSegmentStorageProperties
 	private int defaultDurationSeconds;
 	private int defaultWidth;
 	private int defaultHeight;
+	private long minimumFreeSpaceBytes;
 	
 	public RecordingSegmentStorageProperties()
 	{
-		allowedContentTypes=List.of();
+		this.allowedContentTypes=List.of();
+		this.minimumFreeSpaceBytes=2147483648L;
 	}
 	
 	public String getStorageRoot()
@@ -49,6 +51,11 @@ public class RecordingSegmentStorageProperties
 	public int getDefaultHeight()
 	{
 		return defaultHeight;
+	}
+	
+	public long getMinimumFreeSpaceBytes()
+	{
+		return minimumFreeSpaceBytes;
 	}
 	
 	public void setStorageRoot(String storageRoot)
@@ -97,5 +104,13 @@ public class RecordingSegmentStorageProperties
 			throw new IllegalArgumentException("DefaultHeight cannot be negative");
 		
 		this.defaultHeight=defaultHeight;
+	}
+	
+	public void setMinimumFreeSpaceBytes(long minimumFreeSpaceBytes)
+	{
+		if(minimumFreeSpaceBytes<0)
+			throw new IllegalArgumentException("MinimumFreeSpaceBytes cannot be negative");
+		
+		this.minimumFreeSpaceBytes=minimumFreeSpaceBytes;
 	}
 }

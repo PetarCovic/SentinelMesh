@@ -6,485 +6,442 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.Optional;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
-import org.bytedeco.ffmpeg.global.avcodec;
-import org.bytedeco.javacv.FFmpegFrameRecorder;
-import org.bytedeco.javacv.OpenCVFrameConverter;
-
+import com.sentinelmesh.edge.audio.AudioRange;
+import com.sentinelmesh.edge.audio.AudioSampleBuffer;
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.exceptions.RecordingSpoolException;
+import com.sentinelmesh.edge.media.Mp4MediaWriter;
+import com.sentinelmesh.edge.timing.MediaTiming;
+import com.sentinelmesh.edge.util.FileUtil;
 
 public class StreamingRecordingEncoder implements AutoCloseable
 {
+    private static final System.Logger LOG = System.getLogger(StreamingRecordingEncoder.class.getName());
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
+    private static final long CLOSING_AUDIO_GRACE_NANOS = 250_000_000L;
+    private static final int MAX_PENDING_AUDIO_RANGES = 50;
     private static final DateTimeFormatter FILE_TIMESTAMP_FORMAT =
-            DateTimeFormatter
-                    .ofPattern("yyyyMMdd'T'HHmmssSSS'Z'")
-                    .withZone(ZoneOffset.UTC);
+            DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS'Z'").withZone(ZoneOffset.UTC);
 
     private final RecordingSpoolDirectories spoolDirectories;
+    private final RecordingSpoolService spoolService;
     private final UUID deviceId;
-    private final int segmentDurationSeconds;
+    private final long segmentDurationNanos;
     private final double configuredFPS;
+    private final int sampleRate;
+    private final int channels;
+    private final double recordingAudioGainDb;
+    private final Deque<AudioRange> pendingAudio = new ArrayDeque<>();
 
-    private FFmpegFrameRecorder recorder;
-    private OpenCVFrameConverter.ToMat converter;
-
-    private UUID currentSegmentId;
-    private Path currentVideoPath;
-    private Instant segmentStartTime;
-    private Instant lastFrameTime;
-
-    private int frameWidth;
-    private int frameHeight;
-    private int frameCount;
-
-    private boolean recorderStarted;
+    private SegmentState activeSegment;
+    private SegmentState closingSegment;
+    private long closingCutoffNanos;
+    private long closingSinceNanos;
+    private Long latestAudioEndNanos;
+    private Long lastVideoCaptureNanos;
+    private boolean audioDisabledAfterFailure;
+    private boolean finished;
     private boolean closed;
 
     public StreamingRecordingEncoder(
             RecordingSpoolDirectories spoolDirectories,
+            RecordingSpoolService spoolService,
             UUID deviceId,
             int segmentDurationSeconds,
-            double configuredFPS
-    )
+            double configuredFPS,
+            int sampleRate,
+            int channels,
+            double recordingAudioGainDb)
     {
-        if(spoolDirectories == null)
-        {
-            throw new IllegalArgumentException(
-                    "SpoolDirectories cannot be null"
-            );
-        }
+        this.spoolDirectories = Objects.requireNonNull(spoolDirectories, "spoolDirectories cannot be null");
+        this.spoolService = Objects.requireNonNull(spoolService, "spoolService cannot be null");
+        this.deviceId = Objects.requireNonNull(deviceId, "deviceId cannot be null");
 
-        if(deviceId == null)
-        {
-            throw new IllegalArgumentException(
-                    "DeviceId cannot be null"
-            );
-        }
+        if (segmentDurationSeconds <= 0)
+            throw new IllegalArgumentException("segmentDurationSeconds must be positive");
+        if (!Double.isFinite(configuredFPS) || configuredFPS <= 0)
+            throw new IllegalArgumentException("configuredFPS must be finite and positive");
 
-        if(segmentDurationSeconds <= 0)
-        {
-            throw new IllegalArgumentException(
-                    "SegmentDurationSeconds must be greater than 0"
-            );
-        }
-
-        if(configuredFPS <= 0
-                || Double.isNaN(configuredFPS)
-                || Double.isInfinite(configuredFPS))
-        {
-            throw new IllegalArgumentException(
-                    "ConfiguredFPS must be finite and greater than 0"
-            );
-        }
-
-        this.spoolDirectories = spoolDirectories;
-        this.deviceId = deviceId;
-        this.segmentDurationSeconds = segmentDurationSeconds;
+        if(!Double.isFinite(recordingAudioGainDb)
+				|| (recordingAudioGainDb<-24 || recordingAudioGainDb>24))
+			throw new IllegalArgumentException("recordingAudioGainDb must between -24 and 24 Db");
+        
+        this.segmentDurationNanos = segmentDurationSeconds * NANOS_PER_SECOND;
         this.configuredFPS = configuredFPS;
-
-        this.closed = false;
-        this.recorderStarted = false;
+        this.sampleRate = sampleRate;
+        this.channels = channels;
+        this.recordingAudioGainDb=recordingAudioGainDb;
     }
 
-    public synchronized Optional<RecordingSpoolEntry> acceptFrame(
-            Frame frame
-    )
+    public synchronized List<RecordingSpoolEntry> acceptFrame(
+            Frame frame,
+            List<AudioSampleBuffer> audioChunks,
+            boolean audioRunning,
+            BooleanSupplier canOpenSegment)
     {
-        ensureOpen();
+        if (closed || finished)
+            throw new IllegalStateException("StreamingRecordingEncoder is finished");
+
         validateFrame(frame);
+        Objects.requireNonNull(audioChunks, "audioChunks cannot be null");
+        Objects.requireNonNull(canOpenSegment, "canOpenSegment cannot be null");
 
-        Instant frameTimestamp = frame.getTimestamp();
+        long captureNanos = frame.getCaptureNanos();
+        if (lastVideoCaptureNanos != null && captureNanos - lastVideoCaptureNanos < 0)
+            throw new IllegalArgumentException("Video frames must arrive in capture order");
+        lastVideoCaptureNanos = captureNanos;
 
-        if(lastFrameTime != null
-                && frameTimestamp.isBefore(lastFrameTime))
+        enqueueAudio(audioChunks);
+        List<RecordingSpoolEntry> completed = new ArrayList<>(2);
+
+        boolean rotate = activeSegment != null
+                && captureNanos - activeSegment.startCaptureNanos >= segmentDurationNanos;
+
+        // Free the closing slot before rotating another segment into it.
+        finishClosingIfReady(audioRunning, rotate, completed);
+        if (rotate)
         {
-            throw new IllegalArgumentException(
-                    "Frame timestamp cannot be before the previous frame"
-            );
+            closingSegment = activeSegment;
+            activeSegment = null;
+            closingCutoffNanos = captureNanos;
+            closingSinceNanos = System.nanoTime();
+            finishClosingIfReady(audioRunning, false, completed);
         }
 
-        Optional<RecordingSpoolEntry> completedEntry =
-                Optional.empty();
-
-        if(recorder == null)
+        if (activeSegment == null)
         {
-            openSegment(frame);
-        }
-        else if(shouldRotate(frameTimestamp))
-        {
-            completedEntry = finalizeCurrentSegment();
-            openSegment(frame);
-        }
-        else
-        {
-            validateFrameDimensions(frame);
-        }
-
-        writeFrame(frame);
-
-        return completedEntry;
-    }
-
-    public synchronized Optional<RecordingSpoolEntry>
-            finalizeCurrentSegment()
-    {
-        if(recorder == null)
-        {
-            return Optional.empty();
-        }
-
-        UUID completedSegmentId = currentSegmentId;
-        Path completedVideoPath = currentVideoPath;
-        Instant completedStartTime = segmentStartTime;
-        Instant completedEndTime = lastFrameTime;
-        int completedFrameCount = frameCount;
-
-        Exception cleanupFailure = closeCurrentResources();
-
-        resetCurrentSegmentState();
-
-        if(cleanupFailure != null)
-        {
-            throw new RecordingSpoolException(
-                    "Failed to finalize recording segment: "
-                            + completedVideoPath,
-                    cleanupFailure
-            );
-        }
-
-        if(completedFrameCount <= 0
-                || completedEndTime == null)
-        {
-            throw new RecordingSpoolException(
-                    "Recording segment contained no completed frames: "
-                            + completedVideoPath
-            );
-        }
-
-        /*
-         * RecordingSpoolEntry requires end time to be after start time.
-         * A one-frame partial segment has only one observed timestamp, so
-         * estimate its end using one configured frame interval.
-         */
-        if(!completedEndTime.isAfter(completedStartTime))
-        {
-            long frameDurationNanos =
-                    Math.max(
-                            1L,
-                            Math.round(
-                                    1_000_000_000.0 / configuredFPS
-                            )
-                    );
-
-            completedEndTime =
-                    completedStartTime.plusNanos(frameDurationNanos);
-        }
-
-        try
-        {
-            long fileSizeBytes =
-                    Files.size(completedVideoPath);
-
-            RecordingSpoolEntry completedEntry =
-                    new RecordingSpoolEntry(
-                            completedSegmentId,
-                            deviceId,
-                            completedVideoPath,
-                            completedStartTime,
-                            completedEndTime,
-                            fileSizeBytes,
-                            0,
-                            RecordingSpoolStatus.ACTIVE,
-                            Instant.now(),
-                            null
-                    );
-
-            return Optional.of(completedEntry);
-        }
-        catch(IOException ex)
-        {
-            throw new RecordingSpoolException(
-                    "Failed to inspect completed recording segment: "
-                            + completedVideoPath,
-                    ex
-            );
-        }
-    }
-
-    private void openSegment(Frame firstFrame)
-    {
-        currentSegmentId = UUID.randomUUID();
-        segmentStartTime = firstFrame.getTimestamp();
-        lastFrameTime = null;
-        frameCount = 0;
-
-        frameWidth = firstFrame.getWidth();
-        frameHeight = firstFrame.getHeight();
-
-        String formattedStartTime =
-                FILE_TIMESTAMP_FORMAT.format(segmentStartTime);
-
-        String filename =
-                formattedStartTime
-                + "_"
-                + deviceId
-                + "_"
-                + currentSegmentId
-                + ".mp4";
-
-        Path activeDirectory =
-                spoolDirectories
-                        .getActive()
-                        .toAbsolutePath()
-                        .normalize();
-
-        currentVideoPath =
-                activeDirectory
-                        .resolve(filename)
-                        .normalize();
-
-        if(!currentVideoPath.startsWith(activeDirectory))
-        {
-            resetCurrentSegmentState();
-
-            throw new RecordingSpoolException(
-                    "Recording path escapes the active spool directory"
-            );
-        }
-
-        try
-        {
-            converter =
-                    new OpenCVFrameConverter.ToMat();
-
-            recorder =
-                    new FFmpegFrameRecorder(
-                            currentVideoPath.toFile(),
-                            frameWidth,
-                            frameHeight
-                    );
-
-            recorder.setFormat("mp4");
-            recorder.setFrameRate(configuredFPS);
-            recorder.setVideoCodec(
-                    avcodec.AV_CODEC_ID_H264
-            );
-
-            recorder.start();
-            recorderStarted = true;
-        }
-        catch(Exception ex)
-        {
-            Exception cleanupFailure =
-                    closeCurrentResources();
-
-            Path failedPath = currentVideoPath;
-
-            resetCurrentSegmentState();
-
-            RecordingSpoolException spoolException =
-                    new RecordingSpoolException(
-                            "Failed to open streaming recording segment: "
-                                    + failedPath,
-                            ex
-                    );
-
-            if(cleanupFailure != null)
+            try
             {
-                spoolException.addSuppressed(cleanupFailure);
+                if (canOpenSegment.getAsBoolean())
+                    activeSegment = openSegment(frame, audioRunning && !audioDisabledAfterFailure);
+            }
+            catch (RuntimeException failure)
+            {
+                // Keep entries that were already completed in this call.
+                LOG.log(System.Logger.Level.WARNING, "Could not start a recording segment", failure);
+            }
+        }
+
+        if (activeSegment != null)
+            writeFrame(activeSegment, frame);
+
+        // Keep samples at and after this frame for a later video frame or rollover.
+        // If no writer could open, consume the expired prefix without writing it.
+        consumeAudioBefore(activeSegment, captureNanos);
+        return List.copyOf(completed);
+    }
+
+    private void enqueueAudio(List<AudioSampleBuffer> chunks)
+    {
+        if (audioDisabledAfterFailure)
+            return;
+
+        for (AudioSampleBuffer chunk : chunks)
+        {
+            pendingAudio.addLast(new AudioRange(chunk, 0, chunk.getFrameCount()));
+            long endNanos = chunk.getCaptureStartNanos() + chunk.getDurationNanos();
+            if (latestAudioEndNanos == null || endNanos - latestAudioEndNanos > 0)
+                latestAudioEndNanos = endNanos;
+
+            if (pendingAudio.size() > MAX_PENDING_AUDIO_RANGES)
+                pendingAudio.removeFirst();
+        }
+    }
+
+    private void consumeAudioBefore(SegmentState segment, long cutoffNanos)
+    {
+        while (!pendingAudio.isEmpty())
+        {
+            AudioRange range = pendingAudio.peekFirst();
+            int rangeEnd = range.offsetFrames() + range.frameCount();
+            int split = Math.min(rangeEnd, AudioRange.framesBefore(range.chunk(), cutoffNanos));
+            if (split <= range.offsetFrames())
+                return;
+
+            if (segment != null && segment.audioEnabled && !audioDisabledAfterFailure)
+            {
+                AudioRange toWrite = range.slice(segment.startCaptureNanos, cutoffNanos).orElse(null);
+                if (toWrite != null)
+                {
+                    try
+                    {
+                        segment.writer.writeAudioFrames(
+                                toWrite.chunk(), toWrite.offsetFrames(), toWrite.frameCount());
+                    }
+                    catch (RuntimeException failure)
+                    {
+                        audioDisabledAfterFailure = true;
+                        pendingAudio.clear();
+                        abandonSegment(segment, failure);
+                        return;
+                    }
+                }
             }
 
-            throw spoolException;
+            pendingAudio.removeFirst();
+            if (split < rangeEnd)
+            {
+                pendingAudio.addFirst(new AudioRange(range.chunk(), split, rangeEnd - split));
+                return;
+            }
         }
     }
 
-    private void writeFrame(Frame frame)
+    private void finishClosingIfReady(
+            boolean audioRunning, boolean force, List<RecordingSpoolEntry> completed)
     {
-        validateFrameDimensions(frame);
+        SegmentState segment = closingSegment;
+        if (segment == null)
+            return;
 
+        consumeAudioBefore(segment, closingCutoffNanos);
+        if (closingSegment != segment)
+            return; // An audio write failure already abandoned this writer.
+
+        boolean audioReachedCutoff = latestAudioEndNanos != null
+                && latestAudioEndNanos - closingCutoffNanos >= 0;
+        boolean graceExpired = System.nanoTime() - closingSinceNanos >= CLOSING_AUDIO_GRACE_NANOS;
+        if (force || !segment.audioEnabled || audioDisabledAfterFailure || !audioRunning
+                || audioReachedCutoff || graceExpired)
+        {
+            finalizeSegment(segment, closingCutoffNanos, completed);
+        }
+    }
+
+    private SegmentState openSegment(Frame firstFrame, boolean audioEnabled)
+    {
+        UUID segmentId = UUID.randomUUID();
+        Instant startTime = firstFrame.getTimestamp();
+        String filename = FILE_TIMESTAMP_FORMAT.format(startTime)
+                + "_" + deviceId + "_" + segmentId + ".mp4";
+        Path videoPath = FileUtil.normalizeAbsolute(spoolDirectories.getActive()).resolve(filename);
+
+        Mp4MediaWriter writer;
         try
         {
-            recorder.record(
-                    converter.convert(frame.getImage())
-            );
-
-            lastFrameTime = frame.getTimestamp();
-            frameCount++;
+            writer = openWriter(videoPath, firstFrame, audioEnabled);
         }
-        catch(Exception ex)
+        catch (RuntimeException openFailure)
         {
-            Path failedPath = currentVideoPath;
+            boolean pathCleared = quarantinePartial(videoPath, openFailure);
+            if (!audioEnabled || !pathCleared)
+                throw openFailure;
 
-            Exception cleanupFailure =
-                    closeCurrentResources();
-
-            resetCurrentSegmentState();
-
-            RecordingSpoolException spoolException =
-                    new RecordingSpoolException(
-                            "Failed to write frame to recording segment: "
-                                    + failedPath,
-                            ex
-                    );
-
-            if(cleanupFailure != null)
+            LOG.log(System.Logger.Level.WARNING, "Audio setup failed; retrying with video only: " + videoPath,
+                    openFailure);
+            try
             {
-                spoolException.addSuppressed(cleanupFailure);
+                writer = openWriter(videoPath, firstFrame, false);
+                audioEnabled = false;
             }
-
-            throw spoolException;
+            catch (RuntimeException retryFailure)
+            {
+                if (retryFailure != openFailure)
+                    retryFailure.addSuppressed(openFailure);
+                quarantinePartial(videoPath, retryFailure);
+                throw retryFailure;
+            }
         }
+
+        return new SegmentState(
+                segmentId, videoPath, startTime, firstFrame.getCaptureNanos(), writer, audioEnabled);
     }
 
-    private boolean shouldRotate(Instant frameTimestamp)
+    private Mp4MediaWriter openWriter(Path path, Frame firstFrame, boolean audioEnabled)
     {
-        Instant rotationTime =
-                segmentStartTime.plusSeconds(
-                        segmentDurationSeconds
+        return new Mp4MediaWriter(
+                path, 
+                firstFrame.getWidth(), 
+                firstFrame.getHeight(), 
+                configuredFPS,
+                firstFrame.getCaptureNanos(), 
+                sampleRate, 
+                channels, 
+                audioEnabled,
+                recordingAudioGainDb
                 );
-
-        return !frameTimestamp.isBefore(rotationTime);
     }
 
-    private void validateFrame(Frame frame)
+    private void writeFrame(SegmentState segment, Frame frame)
     {
-        if(frame == null || frame.isEmpty())
+        try
         {
-            throw new IllegalArgumentException(
-                    "Frame cannot be null or empty"
-            );
+            if (segment.writer.writeVideoFrame(frame))
+            {
+                segment.lastVideoTick = MediaTiming.videoTick(
+                        frame.getCaptureNanos(), segment.startCaptureNanos, configuredFPS);
+            }
         }
-
-        if(frame.getTimestamp() == null)
+        catch (RuntimeException failure)
         {
-            throw new IllegalArgumentException(
-                    "Frame timestamp cannot be null"
-            );
-        }
-
-        if(frame.getWidth() <= 0
-                || frame.getHeight() <= 0)
-        {
-            throw new IllegalArgumentException(
-                    "Frame dimensions must be greater than 0"
-            );
+            abandonSegment(segment, failure);
         }
     }
 
-    private void validateFrameDimensions(Frame frame)
+    private void finalizeSegment(SegmentState segment, long endCaptureNanos, List<RecordingSpoolEntry> completed)
     {
-        if(frame.getWidth() != frameWidth
-                || frame.getHeight() != frameHeight)
+        if (segment.lastVideoTick < 0)
         {
-            throw new RecordingSpoolException(
-                    "Frame dimensions changed during an active "
-                    + "recording segment"
-            );
+            abandonSegment(segment, new RecordingSpoolException("Segment contained no written video frames"));
+            return;
+        }
+
+        detach(segment);
+        try
+        {
+            segment.writer.close();
+            long size = Files.size(segment.videoPath);
+            if (size <= 0)
+                throw new RecordingSpoolException("Finalized recording is empty: " + segment.videoPath);
+
+            Instant endTime = segment.startTime.plusNanos(endCaptureNanos - segment.startCaptureNanos);
+            completed.add(new RecordingSpoolEntry(
+                    segment.segmentId, deviceId, segment.videoPath, segment.startTime, endTime,
+                    size, 0, RecordingSpoolStatus.ACTIVE, Instant.now(), null));
+        }
+        catch (IOException | RuntimeException failure)
+        {
+            quarantinePartial(segment.videoPath, failure);
+            LOG.log(System.Logger.Level.WARNING, "Could not finalize recording segment: " + segment.videoPath,
+                    failure);
         }
     }
 
-    private Exception closeCurrentResources()
+    public synchronized List<RecordingSpoolEntry> finishRemainingSegments(List<AudioSampleBuffer> audioChunks)
     {
-        Exception failure = null;
+        if (closed || finished)
+            return List.of();
 
-        if(recorder != null)
+        Objects.requireNonNull(audioChunks, "audioChunks cannot be null");
+        finished = true;
+        List<RecordingSpoolEntry> completed = new ArrayList<>(2);
+        try
         {
-            if(recorderStarted)
-            {
-                try
-                {
-                    recorder.stop();
-                }
-                catch(Exception ex)
-                {
-                    failure = ex;
-                }
-            }
+            enqueueAudio(audioChunks);
+            finishClosingIfReady(false, true, completed);
 
-            try
+            SegmentState segment = activeSegment;
+            if (segment != null)
             {
-                recorder.close();
+                long durationNanos = Math.max(1L,
+                        Math.round((segment.lastVideoTick + 1.0) * NANOS_PER_SECOND / configuredFPS));
+                long endCaptureNanos = segment.startCaptureNanos + durationNanos;
+                if (segment.lastVideoTick >= 0)
+                    consumeAudioBefore(segment, endCaptureNanos);
+                if (activeSegment == segment)
+                    finalizeSegment(segment, endCaptureNanos, completed);
             }
-            catch(Exception ex)
-            {
-                if(failure == null)
-                {
-                    failure = ex;
-                }
-                else
-                {
-                    failure.addSuppressed(ex);
-                }
-            }
+            return List.copyOf(completed);
         }
-
-        if(converter != null)
+        finally
         {
-            try
-            {
-                converter.close();
-            }
-            catch(Exception ex)
-            {
-                if(failure == null)
-                {
-                    failure = ex;
-                }
-                else
-                {
-                    failure.addSuppressed(ex);
-                }
-            }
-        }
-
-        return failure;
-    }
-
-    private void resetCurrentSegmentState()
-    {
-        recorder = null;
-        converter = null;
-
-        currentSegmentId = null;
-        currentVideoPath = null;
-        segmentStartTime = null;
-        lastFrameTime = null;
-
-        frameWidth = 0;
-        frameHeight = 0;
-        frameCount = 0;
-
-        recorderStarted = false;
-    }
-
-    private void ensureOpen()
-    {
-        if(closed)
-        {
-            throw new IllegalStateException(
-                    "StreamingRecordingEncoder is closed"
-            );
+            pendingAudio.clear();
         }
     }
 
     @Override
     public synchronized void close()
     {
-        if(closed)
-        {
+        if (closed)
             return;
-        }
 
+        closed = true;
         try
         {
-            finalizeCurrentSegment();
+            if (closingSegment != null)
+                abandonSegment(closingSegment, new RecordingSpoolException("Encoder closed before segment finish"));
         }
         finally
         {
-            closed = true;
+            try
+            {
+                if (activeSegment != null)
+                    abandonSegment(activeSegment, new RecordingSpoolException("Encoder closed before segment finish"));
+            }
+            finally
+            {
+                pendingAudio.clear();
+            }
+        }
+    }
+
+    private void detach(SegmentState segment)
+    {
+        if (activeSegment == segment)
+            activeSegment = null;
+        if (closingSegment == segment)
+            closingSegment = null;
+    }
+
+    private void abandonSegment(SegmentState segment, RuntimeException failure)
+    {
+        detach(segment);
+        try
+        {
+            segment.writer.close();
+        }
+        catch (RuntimeException cleanupFailure)
+        {
+            if (cleanupFailure != failure)
+                failure.addSuppressed(cleanupFailure);
+        }
+        quarantinePartial(segment.videoPath, failure);
+        LOG.log(System.Logger.Level.WARNING, "Abandoned recording segment: " + segment.videoPath, failure);
+    }
+
+    private boolean quarantinePartial(Path path, Exception failure)
+    {
+        try
+        {
+            // A missing file also means the original path can safely be reused.
+            spoolService.quarantineActiveFile(path);
+            return true;
+        }
+        catch (RuntimeException quarantineFailure)
+        {
+            if (quarantineFailure != failure)
+                failure.addSuppressed(quarantineFailure);
+            return false;
+        }
+    }
+
+    private static void validateFrame(Frame frame)
+    {
+        if (frame == null || frame.isEmpty())
+            throw new IllegalArgumentException("Frame cannot be null or empty");
+        if (frame.getTimestamp() == null)
+            throw new IllegalArgumentException("Frame timestamp cannot be null");
+        if (frame.getWidth() <= 0 || frame.getHeight() <= 0)
+            throw new IllegalArgumentException("Frame dimensions must be positive");
+    }
+
+    private static final class SegmentState
+    {
+        private final UUID segmentId;
+        private final Path videoPath;
+        private final Instant startTime;
+        private final long startCaptureNanos;
+        private final Mp4MediaWriter writer;
+        private final boolean audioEnabled;
+        private long lastVideoTick = -1;
+
+        private SegmentState(UUID segmentId, Path videoPath, Instant startTime, long startCaptureNanos,
+                Mp4MediaWriter writer, boolean audioEnabled)
+        {
+            this.segmentId = segmentId;
+            this.videoPath = videoPath;
+            this.startTime = startTime;
+            this.startCaptureNanos = startCaptureNanos;
+            this.writer = writer;
+            this.audioEnabled = audioEnabled;
         }
     }
 }

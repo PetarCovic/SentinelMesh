@@ -61,6 +61,19 @@ sentinelmesh:
     default-duration-seconds: 15
     default-width: 0
     default-height: 0
+    
+    minimum-free-space-bytes: 2147483648
+
+    retention:
+        enabled: false
+        duration: 30d
+        cleanup-interval: 1h
+        batch-size: 100
+
+    reconciliation:
+        enabled: false
+        interval: 6h
+        safety-window: 10m
 
 app:
   version: 0.1.0

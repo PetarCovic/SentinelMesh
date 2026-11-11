@@ -84,4 +84,34 @@ public interface RecordingSegmentRepository extends JpaRepository<RecordingSegme
 		        @Param("end") Instant end,
 		        Pageable pageable
 		);
+	
+	List<RecordingSegment> findBySegmentEndTimeBeforeOrderBySegmentEndTimeAscIdAsc(
+	        Instant cutoff,
+	        Pageable pageable
+	);
+	
+	List<RecordingSegment> findByCreatedAtBeforeOrderByCreatedAtAscIdAsc(
+	        Instant cutoff,
+	        Pageable pageable
+	);
+	
+	@Query("""
+	        SELECT recording
+	        FROM RecordingSegment recording
+	        WHERE recording.createdAt < :cutoff
+	          AND (
+	              recording.createdAt > :afterCreatedAt
+	              OR (
+	                  recording.createdAt = :afterCreatedAt
+	                  AND recording.id > :afterId
+	              )
+	          )
+	        ORDER BY recording.createdAt ASC, recording.id ASC
+	        """)
+	List<RecordingSegment> findReconciliationBatchAfter(
+	        @Param("cutoff") Instant cutoff,
+	        @Param("afterCreatedAt") Instant afterCreatedAt,
+	        @Param("afterId") UUID afterId,
+	        Pageable pageable
+	);
 }

@@ -1,5 +1,8 @@
 package com.sentinelmesh.edge.recording;
 
+import java.util.List;
+
+import com.sentinelmesh.edge.audio.AudioSampleBuffer;
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.client.RecordingSegmentUploadClient;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
@@ -50,9 +53,13 @@ public class ContinuousRecordingSubsystem implements AutoCloseable
 				);
 		this.recordingEncoder=new StreamingRecordingEncoder(
 				spoolDirectories,
+				spoolService,
 				config.getDeviceId(),
 				Math.toIntExact(config.getRecordingSegmentDurationSeconds()),
-				(double)config.getRecordingSegmentFPS()
+				(double)config.getRecordingSegmentFPS(),
+				config.getAudioSampleRate(),
+				config.getAudioChannels(), 
+				config.getRecordingAudioGainDb()
 				);
 		this.recordingCoordinator=new ContinuousRecordingCoordinator(
 				recordingEncoder,
@@ -136,7 +143,11 @@ public class ContinuousRecordingSubsystem implements AutoCloseable
 		}
 	}
 	
-	public synchronized void acceptFrame(Frame frame)
+	public synchronized void acceptFrame(
+			Frame frame, 
+			List<AudioSampleBuffer> audioChunks,
+			boolean audioRunning
+			)
 	{
 		if(!config.isContinuousRecordingEnabled())
 			return;
@@ -150,7 +161,15 @@ public class ContinuousRecordingSubsystem implements AutoCloseable
 		if(frame==null || frame.isEmpty())
 			throw new IllegalArgumentException("Frame cannot be null or blank");
 		
-		recordingCoordinator.acceptFrame(frame);
+		recordingCoordinator.acceptFrame(frame, audioChunks, audioRunning);
+	}
+	
+	public synchronized void finish(List<AudioSampleBuffer> audioChunks)
+	{
+		if(!config.isContinuousRecordingEnabled() || !started || closed)
+			return;
+		
+		recordingCoordinator.finish(audioChunks);
 	}
 	
 	public synchronized void close()

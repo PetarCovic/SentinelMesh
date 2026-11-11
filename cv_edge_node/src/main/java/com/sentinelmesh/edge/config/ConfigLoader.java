@@ -3,7 +3,6 @@ package com.sentinelmesh.edge.config;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import com.sentinelmesh.edge.devices.DeviceType;
 import com.sentinelmesh.edge.yolo.YoloModelMode;
@@ -38,14 +37,16 @@ public class ConfigLoader
 	private static final boolean SENTINEL_ENABLE_CONTINUOUS_RECORDING=true;
 	private static final boolean SENTINEL_ENABLE_RETAIN_UPLOADED_RECORDINGS=true;
 	private static final boolean SENTINEL_ENABLE_LIVE_DETECTION_OVERLAY=true;
+	private static final boolean SENTINEL_ENABLE_AUDIO=true;
 	private static final int SENTINEL_EVENT_CLIP_FPS=10;
 	private static final int SENTINEL_EVENT_CLIP_BUFFER_SECONDS=10;
+	private static final int SENTINEL_EVENT_CLIP_POST_SECONDS=2;
 	private static final int SENTINEL_RECORDING_SEGMENT_DURATION_SECONDS=60;
 	private static final int SENTINEL_RECORDING_SEGMENT_FPS=10;
 	private static final Path SENTINEL_RECORDING_SPOOL_ROOT=Path.of("./recording-spool");
 	private static final int SENTINEL_RECORDING_MAXIMUM_UPLOAD_ATTEMPTS=10;
-	private static final long SENTINEL_RECORDING_MAXIMUM_SPOOL_SIZE_BYTES=10737418240L; //10*1024*1024*1024
-	private static final long SENTINEL_RECORDING_MINIMUM_FREE_DISK_SPACE_BYTES=2147483648L; //20*1024*1024*1024
+	private static final long SENTINEL_RECORDING_MAXIMUM_SPOOL_SIZE_BYTES=10737418240L; //10*1024*1024*1024			10GiB
+	private static final long SENTINEL_RECORDING_MINIMUM_FREE_DISK_SPACE_BYTES=2147483648L; //2*1024*1024*1024		2GiB
 	private static final int SENTINEL_RECORDING_WIDTH=640;
 	private static final int SENTINEL_RECORDING_HEIGHT=480;
 	private static final boolean SENTINEL_DELETE_PENDING_WHEN_NECESSARY=false;
@@ -53,6 +54,12 @@ public class ConfigLoader
 	private static final Duration SENTINEL_UPLOADED_RECORDING_RETENTION_DURATION=Duration.ofMinutes(1);//Duration.ofDays(1);
 	private static final Duration SENTINEL_UPLOADED_RECORDING_CLEANUP_INTERVAL=Duration.ofSeconds(10);//Duration.ofHours(1);
 	private static final int SENTINEL_LIVE_PREVIEW_FPS=10;
+	private static final String SENTINEL_AUDIO_DEVICE_NAME="Microphone (Logitech BRIO)";
+	private static final int SENTINEL_AUDIO_SAMPLE_RATE=48_000;
+	private static final int SENTINEL_AUDIO_CHANNELS=1;
+	private static final double SENTINEL_RECORDING_AUDIO_GAIN_DB=
+			Double.parseDouble(System.getenv()
+					.getOrDefault("SENTINEL_RECORDING_AUDIO_GAIN_DB", "24"));
 
 	public EdgeNodeConfig load()
 	{
@@ -86,8 +93,10 @@ public class ConfigLoader
 				SENTINEL_ENABLE_CONTINUOUS_RECORDING,
 				SENTINEL_ENABLE_RETAIN_UPLOADED_RECORDINGS,
 				SENTINEL_ENABLE_LIVE_DETECTION_OVERLAY,
+				SENTINEL_ENABLE_AUDIO,
 				SENTINEL_EVENT_CLIP_FPS,
 				SENTINEL_EVENT_CLIP_BUFFER_SECONDS,
+				SENTINEL_EVENT_CLIP_POST_SECONDS,
 				SENTINEL_RECORDING_SEGMENT_DURATION_SECONDS,
 				SENTINEL_RECORDING_SEGMENT_FPS,
 				SENTINEL_RECORDING_SPOOL_ROOT,
@@ -100,7 +109,11 @@ public class ConfigLoader
 				SENTINEL_RECORDING_UPLOAD_INTERVAL,
 				SENTINEL_UPLOADED_RECORDING_RETENTION_DURATION,
 				SENTINEL_UPLOADED_RECORDING_CLEANUP_INTERVAL,
-				SENTINEL_LIVE_PREVIEW_FPS
+				SENTINEL_LIVE_PREVIEW_FPS,
+				SENTINEL_AUDIO_DEVICE_NAME,
+				SENTINEL_AUDIO_SAMPLE_RATE,
+				SENTINEL_AUDIO_CHANNELS,
+				SENTINEL_RECORDING_AUDIO_GAIN_DB
 				);
 	}
 }

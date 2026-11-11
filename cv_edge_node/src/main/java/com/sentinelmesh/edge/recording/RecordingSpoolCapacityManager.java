@@ -49,12 +49,9 @@ public class RecordingSpoolCapacityManager
 		this.deletePendingWhenNecessary=deletePendingWhenNecessary;
 	}
 	
-	public void enforceCapacity()
+	public boolean enforceCapacity()
 	{
-		if(!isCapacityExceeded())
-			return;
-		
-		reclaimSpace();
+		return reclaimSpace();
 	}
 
 	public boolean isCapacityExceeded()
@@ -104,21 +101,17 @@ public class RecordingSpoolCapacityManager
 		}
 	}
 
-	private void reclaimSpace()
+	private boolean reclaimSpace()
 	{
 		while(isCapacityExceeded())
 		{
 			boolean deleted=deleteOldestUploaded();
-			
-			if(!deleted)
-				deleted=deleteOldestFailed();
-			
-			if(!deleted && deletePendingWhenNecessary)
-				deleted=deleteOldestPending();
 		
 			if(!deleted)
-				throw new RecordingSpoolException("Error reclaiming space");
+				return false;
 		}
+		
+		return true;
 	}
 	
 	private boolean deleteOldestInPath(Path path, RecordingSpoolStatus status)

@@ -1,12 +1,16 @@
 package com.sentinelmesh.edge.processing;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
+import com.sentinelmesh.edge.audio.AudioCaptureWorker;
+import com.sentinelmesh.edge.audio.AudioSampleBuffer;
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.camera.FrameSource;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
 import com.sentinelmesh.edge.detection.DetectionResult;
 import com.sentinelmesh.edge.live.LiveFramePublisher;
+import com.sentinelmesh.edge.media.EventClipCoordinator;
 import com.sentinelmesh.edge.media.FrameAnnotationRenderer;
 import com.sentinelmesh.edge.recording.ContinuousRecordingSubsystem;
 
@@ -19,7 +23,10 @@ public class FrameProcessingLoop
 	private final LiveFramePublisher liveFramePublisher;
 	private final FrameAnnotationRenderer frameAnnotationRenderer;
 	private volatile Thread processingThread;
+	private final AudioCaptureWorker audioCaptureWorker;
+	private final EventClipCoordinator eventClipCoordinator;
 
+	private final CountDownLatch loopFinished = new CountDownLatch(1);
 	private volatile boolean running=false;
 
 	public FrameProcessingLoop(
@@ -28,7 +35,9 @@ public class FrameProcessingLoop
 			EdgeNodeConfig config,
 			ContinuousRecordingSubsystem recordingSubsystem,
 			FrameAnnotationRenderer frameAnnotationRenderer,
-			LiveFramePublisher liveFramePublisher
+			LiveFramePublisher liveFramePublisher,
+			AudioCaptureWorker audioCaptureWorker,
+			EventClipCoordinator eventClipCoordinator
 			)
 	{
 		if(fs==null)
@@ -48,6 +57,9 @@ public class FrameProcessingLoop
 
 		if(frameAnnotationRenderer==null)
 			throw new IllegalArgumentException("FrameAnnotationRenderer cannot be null");
+		
+		if(eventClipCoordinator==null)
+			throw new IllegalArgumentException("eventClipCoordinator cannot be null");
 
 		this.fs=fs;
 		this.frameProcessor=frameProcessor;
@@ -55,6 +67,8 @@ public class FrameProcessingLoop
 		this.recordingSubsystem=recordingSubsystem;
 		this.liveFramePublisher=liveFramePublisher;
 		this.frameAnnotationRenderer=frameAnnotationRenderer;
+		this.audioCaptureWorker=audioCaptureWorker;
+		this.eventClipCoordinator=eventClipCoordinator;
 	}
 
 	public void start()
@@ -71,7 +85,9 @@ public class FrameProcessingLoop
 	    }
 	    finally
 	    {
+	    	running=false;
 	        processingThread = null;
+	        loopFinished.countDown();
 	    }
 	}
 
@@ -88,18 +104,25 @@ public class FrameProcessingLoop
 	public void awaitTermination()
 	{
 	    Thread thread = processingThread;
-
-	    if(thread == null || thread == Thread.currentThread())
+	    if (thread == null || thread == Thread.currentThread())
 	        return;
 
-	    try
+	    boolean interrupted = false;
+	    while (true)
 	    {
-	        thread.join();
+	        try
+	        {
+	            loopFinished.await();
+	            break;
+	        }
+	        catch (InterruptedException ex)
+	        {
+	            interrupted = true;
+	        }
 	    }
-	    catch(InterruptedException ex)
-	    {
+
+	    if (interrupted)
 	        Thread.currentThread().interrupt();
-	    }
 	}
 
 	private void runLoop()
@@ -120,15 +143,36 @@ public class FrameProcessingLoop
 					break;
 				}
 
+				List<AudioSampleBuffer> audioChunks=List.of();
+				boolean audioRunning=false;
+				
+				if(audioCaptureWorker!=null)
+				{
+					audioRunning=audioCaptureWorker.isRunning();
+					audioChunks=audioCaptureWorker.drainAvailable();
+				}
+				
 				try
 				{
-					recordingSubsystem.acceptFrame(frame);
+					recordingSubsystem.acceptFrame(
+							frame,
+							audioChunks,
+							audioRunning);
 				}
 				catch(Exception ex)
 				{
 					System.err.println("Recording Subsystem failed: "+ex.getMessage());
 				}
 
+				try
+				{
+					eventClipCoordinator.acceptFrame(frame, audioChunks, audioRunning);
+				}
+				catch(Exception ex)
+				{
+					System.err.println("EventClipCoordinator failed: "+ex.getMessage());
+				}
+				
 				List<DetectionResult> detections=List.of();
 				try
 				{

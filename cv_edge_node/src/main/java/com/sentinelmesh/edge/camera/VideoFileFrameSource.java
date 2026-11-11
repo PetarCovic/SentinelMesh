@@ -60,7 +60,7 @@ public class VideoFileFrameSource implements FrameSource
 			return false;
 		}
 		
-		frame.update(frameCounter, Instant.now(), getSourceName());
+		frame.update(frameCounter, Instant.now(), getSourceName(), System.nanoTime());
 		frameCounter++;
 		
 		return true;

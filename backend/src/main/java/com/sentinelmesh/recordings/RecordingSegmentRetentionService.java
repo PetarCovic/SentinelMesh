@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -11,10 +12,12 @@ public class RecordingSegmentRetentionService
 {
 	private final RecordingSegmentRepository segmentRepository;
 	private final RecordingSegmentStorageService storageService;
-
+	private final RecordingRetentionProperties retentionProperties;
+	
 	public RecordingSegmentRetentionService(
 			RecordingSegmentRepository segmentRepository,
-			RecordingSegmentStorageService storageService)
+			RecordingSegmentStorageService storageService,
+			RecordingRetentionProperties retentionProperties)
 	{
 		if(segmentRepository==null)
 			throw new IllegalArgumentException("SegmentRepository cannot be null");
@@ -22,8 +25,12 @@ public class RecordingSegmentRetentionService
 		if(storageService==null)
 			throw new IllegalArgumentException("StorageService cannot be null");
 
+		if(retentionProperties==null)
+			throw new IllegalArgumentException("RetentionProperties cannot be null");
+		
 		this.segmentRepository=segmentRepository;
 		this.storageService=storageService;
+		this.retentionProperties=retentionProperties;
 	}
 
 	public int deleteExpiredRecordingSegments(Duration retentionDuration)
@@ -44,7 +51,7 @@ public class RecordingSegmentRetentionService
 		if(cutoff==null)
 			throw new IllegalArgumentException("Cutoff cannot be null");
 
-		List<RecordingSegment> expiredSegments=segmentRepository.findBySegmentEndTimeBefore(cutoff);
+		List<RecordingSegment> expiredSegments=segmentRepository.findBySegmentEndTimeBeforeOrderBySegmentEndTimeAscIdAsc(cutoff, PageRequest.of(0, retentionProperties.getBatchSize()));
 
 		int deletedCount=0;
 
@@ -70,5 +77,13 @@ public class RecordingSegmentRetentionService
 		}
 
 		return deletedCount;
+	}
+	
+	public int runRetentionCleanup()
+	{
+		if(!retentionProperties.isEnabled())
+			return 0;
+		
+		return deleteExpiredRecordingSegments(retentionProperties.getDuration());
 	}
 }

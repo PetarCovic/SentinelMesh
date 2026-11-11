@@ -10,6 +10,7 @@ public class Frame
 	private Instant timestamp;
 	private Mat image;
 	private String sourceName;
+	private long captureNanos;
 	
 	public Frame()
 	{
@@ -20,13 +21,15 @@ public class Frame
 			Mat image,
 			int frameId,
 			Instant timestamp,
-			String sourceName
+			String sourceName,
+			long captureNanos
 			)
 	{
 		this.frameId=frameId;
 		this.timestamp=timestamp;
 		this.image=image;
 		this.sourceName=sourceName;
+		this.captureNanos=captureNanos;
 	}
 	
 	public int getFrameId()
@@ -59,6 +62,11 @@ public class Frame
 		return sourceName;
 	}
 	
+	public long getCaptureNanos()
+	{
+		return captureNanos;
+	}
+	
 	public boolean isEmpty()
 	{
 		return image==null || image.empty();
@@ -75,16 +83,19 @@ public class Frame
 				imageCopy,
 				frameId,
 				timestamp,
-				sourceName
+				sourceName,
+				captureNanos
 		);
 	}
 	
 	public void update(
 			int frameId, 
 			Instant timestamp,
-			String sourceName)
+			String sourceName,
+			long captureNanos)
 	{
 		this.frameId=frameId;
+		this.captureNanos=captureNanos;
 		
 		if(timestamp!=null)
 			this.timestamp=timestamp;

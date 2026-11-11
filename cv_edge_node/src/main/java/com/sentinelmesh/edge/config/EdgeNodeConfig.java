@@ -33,8 +33,10 @@ public class EdgeNodeConfig
 	private final boolean enableContinuousRecording;
 	private final boolean enableRetainUploadedRecordings;
 	private final boolean enableLiveDetectionOverlay;
+	private final boolean enableAudio;
 	private final int eventClipFPS;
 	private final int eventClipBufferSeconds;
+	private final int eventClipPostSeconds;
 	private final long recordingSegmentDurationSeconds;
 	private final int recordingSegmentFPS;
 	private final Path recordingSpoolRoot;
@@ -48,6 +50,10 @@ public class EdgeNodeConfig
 	private final Duration uploadedRecordingRetentionDuration;
 	private final Duration uploadedRecordingCleanupInterval;
 	private final int livePreviewFPS;
+	private final String audioDeviceName;
+	private final int audioSampleRate;
+	private final int audioChannels;
+	private final double recordingAudioGainDb;
 
 	public EdgeNodeConfig(
 			String backendBaseUrl,
@@ -74,8 +80,10 @@ public class EdgeNodeConfig
 			boolean enableContinuousRecording,
 			boolean enableRetainUploadedRecordings,
 			boolean enableLiveDetectionOverlay,
+			boolean enableAudio,
 			int eventClipFPS,
 			int eventClipBufferSeconds,
+			int eventClipPostSeconds,
 			long recordingSegmentDurationSeconds,
 			int recordingSegmentFPS,
 			Path recordingSpoolRoot,
@@ -88,7 +96,11 @@ public class EdgeNodeConfig
 			Duration recordingUploadInterval,
 			Duration uploadedRecordingRetentionDuration,
 			Duration uploadedRecordingCleanupInterval,
-			int livePreviewFPS
+			int livePreviewFPS,
+			String audioDeviceName,
+			int audioSampleRate,
+			int audioChannels,
+			double recordingAudioGainDb
 			)
 	{
 		if(backendBaseUrl==null || backendBaseUrl.isBlank())
@@ -138,6 +150,9 @@ public class EdgeNodeConfig
 
 		if(eventClipBufferSeconds<=0)
 			throw new IllegalArgumentException("EventClipBufferSeconds must be greater than 0");
+
+		if(eventClipPostSeconds<1)
+			throw new IllegalArgumentException("eventClipPostSeconds must be greater than 0");
 
 		if(recordingSegmentDurationSeconds<=0)
 			throw new IllegalArgumentException("RecordingSegmentDurationSeconds must be greater than 0");
@@ -189,7 +204,17 @@ public class EdgeNodeConfig
 
 		if(livePreviewFPS<=0)
 			throw new IllegalArgumentException("LivePreviewFPS must be greater than 0");
+		
+		if(audioSampleRate<=0)
+			throw new IllegalArgumentException("AudioSampleRate must be greater than 0");
 
+		if(audioChannels!=1 && audioChannels!=2)
+			throw new IllegalArgumentException("AudioChannels must be 1 or 2");
+		
+		if(!Double.isFinite(recordingAudioGainDb)
+				|| (recordingAudioGainDb<-24 || recordingAudioGainDb>24))
+			throw new IllegalArgumentException("recordingAudioGainDb must between -24 and 24 Db");
+		
 		this.backendBaseUrl=backendBaseUrl;
 		this.deviceId=deviceId;
 		this.apiKey=apiKey;
@@ -214,8 +239,10 @@ public class EdgeNodeConfig
 		this.enableDetectionBoxes=enableDetectionBoxes;
 		this.enableRetainUploadedRecordings=enableRetainUploadedRecordings;
 		this.enableLiveDetectionOverlay=enableLiveDetectionOverlay;
+		this.enableAudio=enableAudio;
 		this.eventClipFPS=eventClipFPS;
 		this.eventClipBufferSeconds=eventClipBufferSeconds;
+		this.eventClipPostSeconds=eventClipPostSeconds;
 		this.recordingSegmentDurationSeconds=recordingSegmentDurationSeconds;
 		this.recordingSegmentFPS=recordingSegmentFPS;
 		this.recordingSpoolRoot=recordingSpoolRoot;
@@ -229,6 +256,15 @@ public class EdgeNodeConfig
 		this.uploadedRecordingRetentionDuration=uploadedRecordingRetentionDuration;
 		this.uploadedRecordingCleanupInterval=uploadedRecordingCleanupInterval;
 		this.livePreviewFPS=livePreviewFPS;
+		
+		if(audioDeviceName==null || audioDeviceName.isBlank())
+			this.audioDeviceName=null;
+		else
+			this.audioDeviceName=audioDeviceName;
+		
+		this.audioSampleRate=audioSampleRate;
+		this.audioChannels=audioChannels;
+		this.recordingAudioGainDb=recordingAudioGainDb;
 	}
 
 	public String getBackendBaseUrl()
@@ -356,6 +392,11 @@ public class EdgeNodeConfig
 	{
 		return enableLiveDetectionOverlay;
 	}
+	
+	public boolean isAudioEnabled()
+	{
+		return enableAudio;
+	}
 
 	public boolean hasVideoFilePath()
 	{
@@ -370,6 +411,11 @@ public class EdgeNodeConfig
 	public int getEventClipBufferSeconds()
 	{
 		return eventClipBufferSeconds;
+	}
+	
+	public int getEventClipPostSeconds()
+	{
+		return eventClipPostSeconds;
 	}
 
 	public long getRecordingSegmentDurationSeconds()
@@ -435,5 +481,25 @@ public class EdgeNodeConfig
 	public int getLivePreviewFPS()
 	{
 		return livePreviewFPS;
+	}
+	
+	public String getAudioDeviceName()
+	{
+		return audioDeviceName;
+	}
+	
+	public int getAudioSampleRate()
+	{
+		return audioSampleRate;
+	}
+	
+	public int getAudioChannels()
+	{
+		return audioChannels;
+	}
+	
+	public double getRecordingAudioGainDb()
+	{
+		return recordingAudioGainDb;
 	}
 }

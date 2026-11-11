@@ -9,16 +9,14 @@ import java.util.UUID;
 import com.sentinelmesh.edge.camera.Frame;
 import com.sentinelmesh.edge.client.SecurityEventClient;
 import com.sentinelmesh.edge.client.SnapshotUploadClient;
-import com.sentinelmesh.edge.client.VideoClipUploadClient;
 import com.sentinelmesh.edge.config.EdgeNodeConfig;
 import com.sentinelmesh.edge.debug.FrameDebugViewer;
 import com.sentinelmesh.edge.detection.DetectionPipeline;
 import com.sentinelmesh.edge.detection.DetectionResult;
 import com.sentinelmesh.edge.detection.DetectionType;
 import com.sentinelmesh.edge.detection.PersonDetectionWorker;
-import com.sentinelmesh.edge.media.FrameRingBuffer;
+import com.sentinelmesh.edge.media.EventClipCoordinator;
 import com.sentinelmesh.edge.media.SnapshotEncoder;
-import com.sentinelmesh.edge.media.VideoClipEncoder;
 
 public class FrameProcessor
 {
@@ -31,9 +29,8 @@ public class FrameProcessor
 	private final PersonDetectionConfirmationTracker personConfirmationTracker;
 	private final SnapshotEncoder snapshotEncoder;
 	private final SnapshotUploadClient snapshotUploadClient;
-	private final FrameRingBuffer frameRingBuffer;
-	private final VideoClipEncoder videoClipEncoder;
-	private final VideoClipUploadClient videoClipUploadClient;
+	private final EventClipCoordinator eventClipCoordinator;
+	
 	private long lastProcessedPersonResultVersion;
 	private boolean latestPersonConfirmed;
 	private long lastHandledPersonResultVersion;
@@ -50,9 +47,7 @@ public class FrameProcessor
 			FrameDebugViewer debugViewer,
 			SnapshotEncoder snapshotEncoder,
 			SnapshotUploadClient snapshotUploadClient,
-			FrameRingBuffer frameRingBuffer,
-			VideoClipEncoder videoClipEncoder,
-			VideoClipUploadClient videoClipUploadClient
+			EventClipCoordinator eventClipCoordinator
 			)
 	{
 		if(detectionPipeline == null)
@@ -72,15 +67,9 @@ public class FrameProcessor
 
 		if(snapshotUploadClient == null)
 			throw new IllegalArgumentException("SnapshotUploadClient cannot be null");
-
-		if(frameRingBuffer == null)
-			throw new IllegalArgumentException("FrameRingBuffer cannot be null");
-
-		if(videoClipEncoder == null)
-			throw new IllegalArgumentException("VideoClipEncoder cannot be null");
-
-		if(videoClipUploadClient == null)
-			throw new IllegalArgumentException("VideoClipUploadClient cannot be null");
+		
+		if(eventClipCoordinator == null)
+			throw new IllegalArgumentException("EventClipCoordinator cannot be null");
 
 		this.detectionPipeline = detectionPipeline;
 		this.personDetectionWorker = personDetectionWorker;
@@ -96,24 +85,13 @@ public class FrameProcessor
 		this.lastHandledPersonResultVersion=-1L;
 		this.snapshotEncoder=snapshotEncoder;
 		this.snapshotUploadClient=snapshotUploadClient;
-		this.frameRingBuffer=frameRingBuffer;
-		this.videoClipEncoder=videoClipEncoder;
-		this.videoClipUploadClient=videoClipUploadClient;
+		this.eventClipCoordinator=eventClipCoordinator;
 	}
 
 	public List<DetectionResult> process(Frame frame)
 	{
 		if(frame == null || frame.isEmpty())
 			return List.of();
-
-		try
-		{
-		    frameRingBuffer.add(frame);
-		}
-		catch(Exception ex)
-		{
-		    System.out.println("Failed to add frame to video clip buffer: " + ex.getMessage());
-		}
 
 		List<DetectionResult> detections = new ArrayList<>();
 
@@ -212,33 +190,17 @@ public class FrameProcessor
 								+ ex.getMessage());
 					}
 
-					List<Frame> clipFrames = List.of();
-
 					try
 					{
-					    clipFrames = frameRingBuffer.snapshot();
-
-					    byte[] encodedVideo = videoClipEncoder.encodeMp4(clipFrames);
-
-					    videoClipUploadClient.uploadVideoClip(
-					            config.getDeviceId(),
-					            eventId,
-					            config.getApiKey(),
-					            encodedVideo
-					            );
+					    boolean clipRequest=eventClipCoordinator.requestClip(eventId, frame.getCaptureNanos());
+					
+					    if(!clipRequest)
+					    	System.out.println("Clip request skipped for event " + eventId);
 					}
 					catch(Exception ex)
 					{
-					    System.out.println("Security event sent, but video clip upload failed: "
+					    System.out.println("Clip request failed: "
 					            + ex.getMessage());
-					}
-					finally
-					{
-					    for(Frame clipFrame : clipFrames)
-					    {
-					        if(clipFrame != null)
-					            clipFrame.close();
-					    }
 					}
 				}
 				catch(Exception ex)

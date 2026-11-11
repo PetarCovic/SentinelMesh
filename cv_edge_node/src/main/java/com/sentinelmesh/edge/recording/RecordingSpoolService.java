@@ -3,10 +3,17 @@ package com.sentinelmesh.edge.recording;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Optional;
+import java.util.UUID;
 
 import com.sentinelmesh.edge.exceptions.RecordingSpoolException;
+import com.sentinelmesh.edge.util.FileUtil;
 
 public class RecordingSpoolService 
 {
@@ -286,5 +293,50 @@ public class RecordingSpoolService
 	                ex
 	        );
 		}
+	}
+	
+	public synchronized Optional<Path> quarantineActiveFile(Path videoPath)
+	{
+		if(videoPath==null)
+			throw new IllegalArgumentException("videoPath cannot be null");
+		
+		if(!FileUtil.isDirectChildOf(videoPath, spoolDirectories.getActive()))
+			throw new IllegalArgumentException("videoPath must be in active path");
+		
+		if(!FileUtil.getFileExtension(videoPath).equals("mp4"))
+			throw new IllegalArgumentException("videoPath must be .mp4");
+		
+		Path normalizedPath=videoPath.toAbsolutePath().normalize();
+
+		Path failedPath;
+		try
+		{
+			BasicFileAttributes attributes=Files.readAttributes(
+							normalizedPath, 
+							BasicFileAttributes.class,
+	                        LinkOption.NOFOLLOW_LINKS
+							);
+			
+			if(!attributes.isRegularFile())
+				throw new RecordingSpoolException("attributes must be regular file");
+			
+			Path filename=Paths.get("partial-"
+					+UUID.randomUUID().toString()
+					+"-"+normalizedPath.getFileName());
+			
+			failedPath=FileUtil.normalizeAbsolute(spoolDirectories.getFailed().resolve(filename));
+		}
+		catch(NoSuchFileException ex)
+		{
+			return Optional.empty();
+		}
+		catch(IOException ex)
+		{
+			throw new RecordingSpoolException("Failed to quarantine active file", ex);
+		}
+		
+		moveFile(normalizedPath, failedPath);
+		
+		return Optional.of(failedPath);
 	}
 }
