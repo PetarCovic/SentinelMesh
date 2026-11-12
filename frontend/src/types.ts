@@ -6,7 +6,7 @@ export type DeviceType=
     | "TEMPERATURE_SENSOR"
     | "SOUND_SENSOR";
 
-export type DeviceStatus="ONLINE" | "OFFLINE";
+export type DeviceStatus = "ONLINE" | "OFFLINE" | "UNKNOWN";
 
 export type SecurityEventType=
     | "MOTION_DETECTED"
@@ -134,4 +134,56 @@ export interface UpdateAlertRuleRequest {
   alertSeverity?: AlertRuleSeverity;
   alertTitle?: string;
   alertMessage?: string;
+}
+
+export type CameraLiveStatus = "LIVE" | "STALE" | "UNAVAILABLE";
+
+export interface CameraSummary {
+  deviceId: string;
+  name: string;
+  location: string | null;
+  deviceStatus: DeviceStatus;
+  liveStatus: CameraLiveStatus;
+  latestLiveFrameTime: string | null;
+  earliestRecordingTime: string | null;
+  latestRecordingTime: string | null;
+  recordingAvailable: boolean;
+  recordingSegmentCount: number;
+}
+
+export interface CameraDetails extends CameraSummary {
+  recentEvents: SecurityEvent[];
+}
+
+export interface RecordingSegment {
+  id: string;
+  deviceId: string;
+  segmentId: string;
+  contentType: string;
+  videoUrl: string;
+  segmentStartTime: string;
+  segmentEndTime: string;
+  createdAt: string;
+  fileSizeBytes: number;
+  durationSeconds: number;
+  width: number;
+  height: number;
+}
+
+export interface CameraRecordingGap {
+  gapStart: string;
+  gapEnd: string;
+  durationSeconds: number;
+}
+
+export interface CameraRecordingTimeline {
+  deviceId: string;
+  requestedStart: string;
+  requestedEnd: string;
+  earliestRecordingTime: string | null;
+  latestRecordingTime: string | null;
+  totalSegmentCount: number;
+  totalRecordedDurationSeconds: number;
+  segments: PageResponse<RecordingSegment>;
+  gaps: CameraRecordingGap[];
 }

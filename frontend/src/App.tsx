@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import type { FormEvent } from "react";
+
 import {
   acknowledgeAlert,
   createAlertRule,
@@ -14,10 +16,12 @@ import {
   resolveAlert,
   updateAlertRule,
 } from "./api/sentinelMeshApi";
+
 import {
   createDashboardWebSocket,
   type DashboardEventMessage,
 } from "./api/dashboardWebSocket";
+
 import type {
   Alert,
   AlertRule,
@@ -29,9 +33,18 @@ import type {
   PageResponse,
   SecurityEvent,
 } from "./types";
+
 import "./App.css";
+
 import EventSnapshotThumbnail from "./components/EventSnapshotThumbnail";
+
 import EventVideoClipButton from "./components/EventVideoClipButton";
+
+import CameraListPage from "./pages/CameraListPage";
+
+import CameraDetailsPage from "./pages/CameraDetailsPage";
+
+import "./cameras.css";
 
 const PAGE_SIZE = 50;
 
@@ -73,7 +86,7 @@ const severityRank: Record<string, number> = {
   CRITICAL: 4,
 };
 
-function App() {
+function Dashboard() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [events, setEvents] = useState<SecurityEvent[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -1403,6 +1416,78 @@ function getRuleSortValue(rule: AlertRule, field: RuleSortField) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
+}
+
+type AppView =
+  | { page: "dashboard" }
+  | { page: "cameras" }
+  | { page: "camera"; deviceId: string };
+
+function readAppView(): AppView {
+  const path = window.location.hash.slice(1);
+  if (path === "/cameras" || path === "/cameras/") return { page: "cameras" };
+
+  const match = /^\/cameras\/([^/]+)\/?$/.exec(path);
+  if (match) {
+    try {
+      return { page: "camera", deviceId: decodeURIComponent(match[1]) };
+    } catch {
+      return { page: "cameras" };
+    }
+  }
+
+  return { page: "dashboard" };
+}
+
+function App() {
+  const [view, setView] = useState<AppView>(readAppView);
+
+  useEffect(() => {
+    function onHashChange() {
+      setView(readAppView());
+    }
+
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  return (
+    <>
+      <nav className="app-navigation" aria-label="Main navigation">
+        <a
+          href="#/"
+          className="refresh-button"
+          aria-current={view.page === "dashboard" ? "page" : undefined}
+        >
+          Dashboard
+        </a>
+        <a
+          href="#/cameras"
+          className="refresh-button"
+          aria-current={view.page === "cameras" ? "page" : view.page === "camera" ? "location" : undefined}
+        >
+          Cameras
+        </a>
+      </nav>
+
+      {view.page === "dashboard" ? (
+        <Dashboard />
+      ) : (
+        <main className="app-shell camera-shell">
+          {view.page === "cameras" ? (
+            <CameraListPage onSelectCamera={(deviceId) => {
+              window.location.hash = `/cameras/${encodeURIComponent(deviceId)}`;
+            }} />
+          ) : (
+            <>
+              <a className="camera-back-link" href="#/cameras">Back to cameras</a>
+              <CameraDetailsPage key={view.deviceId} deviceId={view.deviceId} />
+            </>
+          )}
+        </main>
+      )}
+    </>
+  );
 }
 
 export default App;

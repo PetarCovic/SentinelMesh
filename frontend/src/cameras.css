@@ -1,0 +1,137 @@
+.app-navigation,
+.camera-controls,
+.camera-details-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-navigation {
+  padding: 16px 32px 0;
+}
+
+.app-navigation a {
+  text-decoration: none;
+}
+
+.app-navigation a[aria-current],
+.camera-shell button[aria-pressed="true"] {
+  border-color: #38bdf8;
+  background: #0c4a6e;
+  color: #f8fafc;
+}
+
+.camera-shell {
+  text-align: left;
+  color-scheme: dark;
+}
+
+.camera-shell h1,
+.camera-shell h2 {
+  color: #f8fafc;
+}
+
+.camera-details-header {
+  justify-content: space-between;
+}
+
+.camera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 16px;
+}
+
+.camera-card h3,
+.camera-shell .stat-card h3 {
+  margin: 0 0 10px;
+}
+
+.camera-status {
+  text-transform: capitalize;
+}
+
+.camera-back-link,
+.camera-link {
+  display: inline-block;
+  margin: 0 0 12px;
+  color: #7dd3fc;
+}
+
+.camera-media {
+  display: block;
+  width: 100%;
+  max-height: 65vh;
+  margin: 0 0 12px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #020617;
+}
+
+.recording-search {
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.recording-search label {
+  display: grid;
+  gap: 6px;
+}
+
+.recording-search input {
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 8px;
+  color: #e5e7eb;
+  background: #0f172a;
+  font: inherit;
+}
+
+.recording-coverage {
+  position: relative;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 6px;
+  margin: 8px 0;
+  background: #16a34a;
+}
+
+.recording-coverage span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #64748b;
+}
+
+.recording-segments {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.recording-segment {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  width: 100%;
+  text-align: left;
+}
+
+.camera-shell button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.camera-shell :focus-visible,
+.app-navigation :focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .app-navigation {
+    padding-inline: 16px;
+  }
+}

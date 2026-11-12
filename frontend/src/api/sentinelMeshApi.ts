@@ -6,6 +6,9 @@ import type {
   PageResponse,
   SecurityEvent,
   UpdateAlertRuleRequest,
+  CameraDetails,
+  CameraRecordingTimeline,
+  CameraSummary
 } from "../types";
 
 export const API_BASE_URL =
@@ -147,4 +150,38 @@ export async function disableAlertRule(id: string): Promise<AlertRule> {
   return request<AlertRule>(`/api/rules/${id}/disable`, {
     method: "PATCH",
   });
+}
+
+export function getCameras(signal?: AbortSignal): Promise<CameraSummary[]> {
+  return request<CameraSummary[]>("/api/cameras", { signal });
+}
+
+export function getCameraDetails(
+  deviceId: string,
+  signal?: AbortSignal,
+): Promise<CameraDetails> {
+  return request<CameraDetails>(`/api/cameras/${encodeURIComponent(deviceId)}`, {
+    signal,
+  });
+}
+
+export function getCameraRecordingTimeline(
+  deviceId: string,
+  start: string,
+  end: string,
+  page = 0,
+  size = 25,
+  signal?: AbortSignal,
+): Promise<CameraRecordingTimeline> {
+  const query = new URLSearchParams({
+    start,
+    end,
+    page: String(page),
+    size: String(size),
+  });
+
+  return request<CameraRecordingTimeline>(
+    `/api/devices/${encodeURIComponent(deviceId)}/recordings/segments?${query}`,
+    { signal },
+  );
 }
